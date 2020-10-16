@@ -53,6 +53,7 @@ def f_image_spectrum(x,num_channels):
     sdev=np.array(sdev)
     return mean,sdev
 
+####################
 ### Pytorch code ###
 ####################
 def f_torch_radial_profile(img, center=(None,None)):
@@ -109,8 +110,6 @@ def f_torch_image_spectrum(x,num_channels):
     sdev=torch.stack(sdev)
     return mean,sdev
 
-
-
 ### Losses 
 def loss_spectrum(spec_mean,spec_mean_ref,spec_std,spec_std_ref,image_size):
     ''' Loss function for the spectrum : mean + variance '''
@@ -119,10 +118,12 @@ def loss_spectrum(spec_mean,spec_mean_ref,spec_std,spec_std_ref,image_size):
     
     idx=int(image_size/2) ### For the spectrum, use only N/2 indices for loss calc.
     
-    spec_mean=torch.log(torch.mean(torch.pow(spec_mean[:,idx]-spec_mean_ref[:,idx],2)))
-    spec_sdev=torch.log(torch.mean(torch.pow(spec_std[:,idx]-spec_std_ref[:,idx],2)))
-    
-    lambda1=1.0;lambda2=1.0;
+#    spec_mean=torch.log(torch.mean(torch.pow(spec_mean[:,idx]-spec_mean_ref[:,idx],2)))
+#    spec_sdev=torch.log(torch.mean(torch.pow(spec_std[:,idx]-spec_std_ref[:,idx],2)))
+    spec_mean=torch.mean(torch.pow(spec_mean[:,idx]-spec_mean_ref[:,idx],2))
+    spec_sdev=torch.mean(torch.pow(spec_std[:,idx]-spec_std_ref[:,idx],2))
+     
+    lambda1=0.002;lambda2=0.002;
     ans=lambda1*spec_mean+lambda2*spec_sdev
     return ans.item()
 
@@ -133,6 +134,8 @@ def loss_hist(data,hist_data):
     hist_sample=hist_sample/torch.sum(hist_sample)
     hist_data=hist_data/torch.sum(hist_data)
 
-    return torch.log(torch.mean(torch.pow(hist_sample-hist_data,2))).item()
+    lambda1=1000.0
+    #return torch.log(torch.mean(torch.pow(hist_sample-hist_data,2))).item()
+    return lambda1*torch.mean(torch.pow(hist_sample-hist_data,2)).item()
 
 

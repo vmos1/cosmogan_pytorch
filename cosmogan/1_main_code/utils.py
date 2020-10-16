@@ -74,19 +74,19 @@ class Discriminator(nn.Module):
             # input is (nc) x 64 x 64
             # nn.Conv2d(in_channels, out_channels, kernel_size,stride,padding,output_padding,groups,bias, Dilation,padding_mode)
             nn.Conv2d(nc, ndf,kernel_size, stride, d_padding,  bias=False),
-            nn.BatchNorm2d(ndf),
+            nn.BatchNorm2d(ndf,eps=1e-05, momentum=0.9, affine=True),
             nn.LeakyReLU(0.2, inplace=True),
             # state size. (ndf) x 32 x 32
             nn.Conv2d(ndf, ndf * 2, kernel_size, stride, d_padding, bias=False),
-            nn.BatchNorm2d(ndf * 2),
+            nn.BatchNorm2d(ndf * 2,eps=1e-05, momentum=0.9, affine=True),
             nn.LeakyReLU(0.2, inplace=True),
             # state size. (ndf*2) x 16 x 16
             nn.Conv2d(ndf * 2, ndf * 4, kernel_size, stride, d_padding, bias=False),
-            nn.BatchNorm2d(ndf * 4),
+            nn.BatchNorm2d(ndf * 4,eps=1e-05, momentum=0.9, affine=True),
             nn.LeakyReLU(0.2, inplace=True),
             # state size. (ndf*4) x 8 x 8
             nn.Conv2d(ndf * 4, ndf * 8, kernel_size, stride, d_padding, bias=False),
-            nn.BatchNorm2d(ndf * 8),
+            nn.BatchNorm2d(ndf * 8,eps=1e-05, momentum=0.9, affine=True),
             nn.LeakyReLU(0.2, inplace=True),
             # state size. (ndf*8) x 4 x 4
             nn.Flatten(),
@@ -103,25 +103,67 @@ def f_gen_images(netG,optimizerG,nz,device,ip_fname,strg,save_dir,op_size=500):
                 op_size: Number of images to generate
     '''
 
-    checkpoint=torch.load(ip_fname)
+    try:
+        checkpoint=torch.load(ip_fname)
+    except Exception as e:
+        print(e)
+        print("skipping generation of images for ",ip_fname)
+        return
+    
     netG.load_state_dict(checkpoint['G_state'])
 #    netD.load_state_dict(checkpoint['D_state'])
 
     ## Load other stuff
     iters=checkpoint['iters']
     epoch=checkpoint['epoch']
-#    optimizerD.load_state_dict(checkpoint['optimizerD_state_dict'])
     optimizerG.load_state_dict(checkpoint['optimizerG_state_dict'])
-
+    
     # Generate batch of latent vectors
     noise = torch.randn(op_size, 1, 1, nz, device=device)
     # Generate fake image batch with G
+    netG.eval() ## This is required before running inference
     gen = netG(noise)
-    gen_images=gen.detach().cpu().numpy()
+    gen_images=gen.detach().cpu().numpy()[:,0,:,:]
     print(gen_images.shape)
 
-    op_fname='best_gen_imgs-%s_epoch-%s_step-%s.npy'%(strg,epoch,iters)
+    op_fname='best-%s_gen_img_epoch-%s_step-%s.npy'%(strg,epoch,iters)
 
     np.save(save_dir+'/images/'+op_fname,gen_images)
 
     print("Image saved in ",op_fname)
+    
+    
+def f_save_checkpoint(epoch,iters,best_chi1,best_chi2,netG,netD,optimizerG,optimizerD,save_loc):
+    ''' Checkpoint model '''
+    torch.save({'epoch':epoch,'iters':iters,'best_chi1':best_chi1,'best_chi2':best_chi2,
+                'G_state':netG.state_dict(),'D_state':netD.state_dict(),'optimizerG_state_dict':optimizerG.state_dict(),
+                'optimizerD_state_dict':optimizerD.state_dict()}, save_loc) 
+    
+    
+def f_load_checkpoint(ip_fname,netG,netD,optimizerG,optimizerD):
+    ''' Load saved checkpoint
+    Also loads step, epoch, best_chi1, best_chi2'''
+    
+    try:
+        checkpoint=torch.load(ip_fname)
+    except Exception as e:
+        print(e)
+        print("skipping generation of images for ",ip_fname)
+        raise SystemError
+    
+    ## Load checkpoint
+    netG.load_state_dict(checkpoint['G_state'])
+    netD.load_state_dict(checkpoint['D_state'])
+
+    optimizerD.load_state_dict(checkpoint['optimizerD_state_dict'])
+    optimizerG.load_state_dict(checkpoint['optimizerG_state_dict'])
+    
+    iters=checkpoint['iters']
+    epoch=checkpoint['epoch']
+    best_chi1=checkpoint['best_chi1']
+    best_chi2=checkpoint['best_chi2']
+
+    netG.train()
+    netD.train()
+    
+    return iters,epoch,best_chi1,best_chi2

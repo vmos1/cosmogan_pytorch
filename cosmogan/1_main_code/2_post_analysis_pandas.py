@@ -2,8 +2,8 @@
 # coding: utf-8
 
 # # Extract data from output files
-# ### Analyze the output from a single LBANN run
-### August 3, 2020
+# ### Analyze the output from a single pytorch run
+### Sept 15, 2020
 
 import numpy as np
 import pandas as pd
@@ -59,7 +59,7 @@ def f_get_sorted_df(main_dir):
     fldr_loc=main_dir+'/images/'
 
     files_arr,img_arr=np.array([]),np.array([])
-    files=glob.glob(fldr_loc+'gen_img_epoch*_step*.npy')
+    files=glob.glob(fldr_loc+'*gen_img_epoch*_step*.npy')
     files_arr=np.append(files_arr,files)
     img_arr=np.append(img_arr,['train'] *len(files))
 

@@ -18,6 +18,6 @@ training:
     g_padding: 2
     d_padding: 2
     image_size: 128
-
+    flip_prob: 0.01
 
 
