@@ -56,6 +56,8 @@ def f_parse_args():
 
 if __name__=='__main__':
     
+    torch.backends.cudnn.benchmark=True
+
     ###############
     ### Set up ###
     ###############
@@ -81,8 +83,9 @@ if __name__=='__main__':
 
     ip_fname=config_dict['data']['ip_fname']
     op_loc=config_dict['data']['op_loc']
+    spec_loss_flag=args.specloss
     
-    if args.specloss: print("Using Spectral loss")
+    if spec_loss_flag: print("Using Spectral loss")
     
     ### Initialize 
     if args.seed=='random': manualSeed = np.random.randint(1, 10000)
@@ -100,8 +103,9 @@ if __name__=='__main__':
     t_img=torch.from_numpy(img)
     print(img.shape,t_img.shape)
 
-    dataset=TensorDataset(torch.Tensor(img))
-    dataloader=DataLoader(dataset,batch_size=batch_size,shuffle=True,num_workers=1,drop_last=True)
+#     dataset=TensorDataset(torch.Tensor(img))
+    dataset=TensorDataset(t_img)
+    dataloader=DataLoader(dataset,batch_size=batch_size,shuffle=True,num_workers=1,drop_last=False)
     print(len(dataset),(dataset[0][0]).shape)
 
     ### Build Models ###
@@ -135,18 +139,29 @@ if __name__=='__main__':
     fixed_noise = torch.randn(batch_size, 1, 1, nz, device=device)
 
     # Setup Adam optimizers for both G and D
-    optimizerD = optim.Adam(netD.parameters(), lr=lr, betas=(beta1, 0.999))
-    optimizerG = optim.Adam(netG.parameters(), lr=lr, betas=(beta1, 0.999))
+    optimizerD = optim.Adam(netD.parameters(), lr=lr, betas=(beta1, 0.999),eps=1e-7)
+    optimizerG = optim.Adam(netG.parameters(), lr=lr, betas=(beta1, 0.999),eps=1e-7)
 
-    ### Precompute metrics for input data for computing losses
-
+    ### Precompute metrics with validation data for computing losses
+    val_img=f_invtransform(np.load(ip_fname)[210000:213000]).transpose(0,1,2,3)
+    t_val_img=torch.from_numpy(val_img)
+    
+    
+    ## Precompute radial coordinates
+    r,ind=f_get_rad(img)
     ## Stored mean and std of spectrum for full input data once
-    mean_spec_data,sdev_spec_data=f_torch_image_spectrum(t_img[:1000],1)
-    hist_data=torch.histc(t_img[:1000],bins=50)
-
-    keys=['Dreal','Dfake','Dfull','G','spec_chi','hist_chi']
-    size=len(dataset)/batch_size * num_epochs
-    metric_dict=dict(zip(keys,[np.empty((int(np.ceil(size))))*np.nan for i in range(len(keys))]))
+    mean_spec_val,sdev_spec_val=f_torch_image_spectrum(t_val_img,1,r,ind)
+    bns=50
+    hist_val=f_compute_hist(t_val_img,bins=bns)
+    del(val_img)
+    del(t_val_img)
+        
+    ### Set up metrics dict
+    keys=['Dreal','Dfake','Dfull','G_adv','G_full','spec_loss','hist_loss','spec_chi','hist_chi']
+    size=int(len(dataloader) * num_epochs)+1
+    metric_dict=dict(zip(keys,[np.empty(size)*np.nan for i in range(len(keys))]))
+    
+#     size=len(dataset)/batch_size * num_epochs
 
     ####################
     ### Train models ###
@@ -160,7 +175,7 @@ if __name__=='__main__':
         if not os.path.exists(save_dir):
             os.makedirs(save_dir+'/models')
             os.makedirs(save_dir+'/images')
-
+            
         ### Initialize variables
         iters = 0; start_epoch=0
         best_chi1,best_chi2=1e10,1e10
@@ -171,125 +186,142 @@ if __name__=='__main__':
         print("Continuing existing run. Loading checkpoint with epoch {0} and step {1}".format(start_epoch,iters))
         start_epoch+=1  ## Start with the next epoch   
         
+        ### Read loss data
+        with open (save_dir+'/metrics.pickle','rb') as f:
+            metrics_dict=pickle.load(f) 
+    
     
     t0=time.time()
     print("Starting Training Loop...")
-    # For each epoch
+
     for epoch in range(start_epoch,num_epochs):
-        for count, data in enumerate(dataloader, 0):  # For each batch in the dataloader
+        t_epoch_start=time.time()
+        for count, data in enumerate(dataloader, 0):
+            netG.train(); netD.train();  ### Need to add these after inference and before training
+
             tme1=time.time()
-            ############################
-            # (1) Update D network: maximize log(D(x)) + log(1 - D(G(z)))
-            ###########################
-            ## Train with all-real batch
+            ### Update D network: maximize log(D(x)) + log(1 - D(G(z)))
             netD.zero_grad()
-            # Format batch
+
             real_cpu = data[0].to(device)
             b_size = real_cpu.size(0)
             real_label = torch.full((b_size,), 1, device=device)
             fake_label = torch.full((b_size,), 0, device=device)
+            g_label = torch.full((b_size,), 1, device=device) ## No flipping for Generator labels
 
             ## Flip labels with probability flip_prob
             for idx in np.random.choice(np.arange(b_size),size=int(np.ceil(b_size*flip_prob))):
                 real_label[idx]=0; fake_label[idx]=1
-                
+            
+            # Generate fake image batch with G
+            noise = torch.randn(b_size, 1, 1, nz, device=device)
+            fake = netG(noise)            
+
             # Forward pass real batch through D
             output = netD(real_cpu).view(-1)
-            # Calculate loss on all-real batch
             errD_real = criterion(output, real_label)
-            # Calculate gradients for D in backward pass
             errD_real.backward()
             D_x = output.mean().item()
 
-            ## Train with all-fake batch
-            # Generate batch of latent vectors
-            noise = torch.randn(b_size, 1, 1, nz, device=device)
-            # Generate fake image batch with G
-            fake = netG(noise)
-            # Classify all fake batch with D
+            # Forward pass real batch through D
             output = netD(fake.detach()).view(-1)
-            # Calculate D's loss on the all-fake batch
             errD_fake = criterion(output, fake_label)
-            # Calculate the gradients for this batch
             errD_fake.backward()
             D_G_z1 = output.mean().item()
-            # Add the gradients from the all-real and all-fake batches
             errD = errD_real + errD_fake
-            # Update D
             optimizerD.step()
 
-            ############################
-            # (2) Update G network: maximize log(D(G(z)))
-            ###########################
+            ###Update G network: maximize log(D(G(z)))
             netG.zero_grad()
-            real_label = torch.full((b_size,), 1, device=device) ## No flipping for Generator labels
-            # Since we just updated D, perform another forward pass of all-fake batch through D
+
             output = netD(fake).view(-1)
-            # Calculate G's loss based on this output
-            errG = criterion(output, real_label)
-            
-            
-            # Histogram pixel intensity metric
-            hist_metric=loss_hist(fake,hist_data.to(device))
- 
+            errG_adv = criterion(output, g_label)
+            # Histogram pixel intensity loss
+            hist_gen=f_compute_hist(f_invtransform(fake),bins=bns)
+            hist_loss=loss_hist(hist_gen,hist_val.to(device))
+
             # Add spectral loss
-            mean,sdev=f_torch_image_spectrum(fake,1)  ### compute spectral mean,std for fake images for batch
-            spec_loss=loss_spectrum(mean,mean_spec_data,sdev,sdev_spec_data,image_size)
-            
-            # Add spectral loss
-            if args.specloss: 
-                errG+=spec_loss
-                errG+=hist_metric
-            
+            mean,sdev=f_torch_image_spectrum(f_invtransform(fake),1,r.to(device),ind.to(device))
+            spec_loss=loss_spectrum(mean,mean_spec_val.to(device),sdev,sdev_spec_val.to(device),image_size)
+#             print(type(spec_loss),type(errG_adv))
+
+#             errG=errG_adv
+            errG=spec_loss
+#             errG_adv.backward()
+#             spec_loss.backward()
+#             errG=errG_adv+spec_loss
+            print('glosses',errG_adv.item(),errG.item(),spec_loss.item())
+#             spec_loss.backward(retain_graph=True)
+#             errG+=spec_loss
+#             errG=errG_adv+spec_loss
+#             if spec_loss_flag: errG+=spec_loss
+
             # Calculate gradients for G
             errG.backward()
             D_G_z2 = output.mean().item()
-            # Update G
             optimizerG.step()
 
-           
             tme2=time.time()
-            
             # Output training stats
             if count % 50 == 0:
-                print('[%d/%d][%d/%d]\tLoss_D: %.4f\tLoss_G: %.4f\tD(x): %.4f\tD(G(z)): %.4f / %.4f'
-                      % (epoch, num_epochs, count, len(dataloader), errD.item(), errG.item(), D_x, D_G_z1, D_G_z2)),
-                print("Spec loss: %s,\t hist_chi: %s"%(spec_loss,hist_metric)),
+                print('[%d/%d][%d/%d]\tLoss_D: %.4f\tLoss_adv: %.4f\tLoss_G: %.4f\tD(x): %.4f\tD(G(z)): %.4f / %.4f'
+                      % (epoch, num_epochs, count, len(dataloader), errD.item(), errG_adv.item(),errG.item(), D_x, D_G_z1, D_G_z2)),
+                print("Spec loss: %s,\t hist loss: %s"%(spec_loss.item(),hist_loss.item())),
                 print("Time taken for step %s : %s"%(iters, tme2-tme1))
-            
+
             # Save metrics
-            for key,val in zip(['Dreal','Dfake','Dfull','G','spec_chi','hist_chi'],[errD_real.item(),errD_fake.item(),errD.item(),errG.item(),spec_loss,hist_metric]):
+
+            for key,val in zip(['Dreal','Dfake','Dfull','G_adv','G_full','spec_loss','hist_loss'],[errD_real.item(),errD_fake.item(),errD.item(),errG_adv.item(),errG.item(),spec_loss,hist_loss]):
                 metric_dict[key][iters]=val
 
             ### Checkpoint the best model
             checkpoint=True
-            
+
+            iters += 1  ### Model has been updated, so update iters before saving metrics and model.
+
+            ### Compute validation metrics for updated model
+            netG.eval()
+            with torch.no_grad():
+                #fake = netG(fixed_noise).detach().cpu()
+                fake = netG(fixed_noise)
+#                 print('size of fake image array',fake.shape)
+
+                hist_gen=f_compute_hist(f_invtransform(fake),bins=bns)
+                hist_chi=loss_hist(hist_gen,hist_val.to(device))
+                mean,sdev=f_torch_image_spectrum(f_invtransform(fake),1,r.to(device),ind.to(device))
+                spec_chi=loss_spectrum(mean,mean_spec_val.to(device),sdev,sdev_spec_val.to(device),image_size)            
+
+            for key,val in zip(['spec_chi','hist_chi'],[spec_chi,hist_chi]):  metric_dict[key][iters]=val            
             if count == len(dataloader)-1: ## Check point at last step of epoch
                 # Checkpoint model for continuing run
                 f_save_checkpoint(epoch,iters,best_chi1,best_chi2,netG,netD,optimizerG,optimizerD,save_loc=save_dir+'/models/checkpoint_last.tar')  
-                
-            if (checkpoint and epoch > 1):
+            
+            if (checkpoint and (epoch > 1)):
                 # Choose best models by metric
-                if hist_metric< best_chi1:
+                if hist_chi< best_chi1:
                     f_save_checkpoint(epoch,iters,best_chi1,best_chi2,netG,netD,optimizerG,optimizerD,save_loc=save_dir+'/models/checkpoint_best_hist.tar')
-                    best_chi1=hist_metric
+                    best_chi1=hist_chi
                     print("Saving best hist model at epoch %s, step %s."%(epoch,iters))
-                
-                if  spec_loss< best_chi2:
+
+                if  spec_chi< best_chi2:
                     f_save_checkpoint(epoch,iters,best_chi1,best_chi2,netG,netD,optimizerG,optimizerD,save_loc=save_dir+'/models/checkpoint_best_spec.tar')
-                    best_chi2=spec_loss
+                    best_chi2=spec_chi
                     print("Saving best spec model at epoch %s, step %s"%(epoch,iters))
 
             # Save G's output on fixed_noise
+
             if (iters % 50 == 0) or ((epoch == num_epochs-1) and (count == len(dataloader)-1)):
+                netG.eval()
                 with torch.no_grad():
                     fake = netG(fixed_noise).detach().cpu()
                     img_arr=np.array(fake[:,0,:,:])
                     fname='gen_img_epoch-%s_step-%s'%(epoch,iters)
                     np.save(save_dir+'/images/'+fname,img_arr)
 
-            iters += 1
-    
+
+        t_epoch_end=time.time()
+        print("Time taken for epoch %s: %s"%(epoch,t_epoch_end-t_epoch_start))
+
     tf=time.time()
     print("Total time",tf-t0)
 
@@ -298,8 +330,10 @@ if __name__=='__main__':
         pickle.dump(metric_dict,f)
 
     ### Generate images for best saved models    
-    ip_fname=save_dir+'/models/checkpoint_best_spec.tar'
-    f_gen_images(netG,optimizerG,nz,device,ip_fname,'spec',save_dir,1000)
-    
-    ip_fname=save_dir+'/models/checkpoint_best_hist.tar'
-    f_gen_images(netG,optimizerG,nz,device,ip_fname,'hist',save_dir,1000)    
+    model_fname=save_dir+'/models/checkpoint_best_spec.tar'
+    f_gen_images(netG,optimizerG,nz,device,model_fname,'spec',save_dir,2000)
+
+    model_fname=save_dir+'/models/checkpoint_best_hist.tar'
+    f_gen_images(netG,optimizerG,nz,device,model_fname,'hist',save_dir,2000)  
+
+

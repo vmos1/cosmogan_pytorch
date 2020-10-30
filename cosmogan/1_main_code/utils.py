@@ -10,6 +10,14 @@ def f_load_config(config_file):
     return config
 
 
+### Transformation functions for image pixel values
+def f_transform(x):
+    return 2.*x/(x + 4.) - 1.
+
+def f_invtransform(s):
+    return 4.*(1. + s)/(1. - s)
+
+
 # custom weights initialization called on netG and netD
 def weights_init(m):
     classname = m.__class__.__name__
@@ -18,8 +26,9 @@ def weights_init(m):
     elif classname.find('BatchNorm') != -1:
         nn.init.normal_(m.weight.data, 1.0, 0.02)
         nn.init.constant_(m.bias.data, 0)
-
-
+    elif classname.find('Linear') != -1:
+        nn.init.normal_(m.weight.data, 1.0, 0.02)
+        
 # Generator Code
 class View(nn.Module):
     def __init__(self, shape):
@@ -40,21 +49,20 @@ class Generator(nn.Module):
         self.main = nn.Sequential(
             # nn.ConvTranspose2d(in_channels, out_channels, kernel_size,stride,padding,output_padding,groups,bias, Dilation,padding_mode)
             nn.Linear(nz,nc*ngf*8*8*8),# 32768
-            nn.BatchNorm2d(nc),
-            nn.ReLU(True),
+            nn.BatchNorm2d(nc,eps=1e-05, momentum=0.9, affine=True),
+            nn.ReLU(inplace=True),
             View(shape=[-1,ngf*8,8,8]),
-            # state size. (ngf*8) x 4 x 4
             nn.ConvTranspose2d(ngf * 8, ngf * 4, kernel_size, stride, g_padding, output_padding=1, bias=False),
-            nn.BatchNorm2d(ngf * 4),
-            nn.ReLU(True),
+            nn.BatchNorm2d(ngf*4,eps=1e-05, momentum=0.9, affine=True),
+            nn.ReLU(inplace=True),
             # state size. (ngf*4) x 8 x 8
             nn.ConvTranspose2d( ngf * 4, ngf * 2, kernel_size, stride, g_padding, 1, bias=False),
-            nn.BatchNorm2d(ngf * 2),
-            nn.ReLU(True),
+            nn.BatchNorm2d(ngf*2,eps=1e-05, momentum=0.9, affine=True),
+            nn.ReLU(inplace=True),
             # state size. (ngf*2) x 16 x 16
             nn.ConvTranspose2d( ngf * 2, ngf, kernel_size, stride, g_padding, 1, bias=False),
-            nn.BatchNorm2d(ngf),
-            nn.ReLU(True),
+            nn.BatchNorm2d(ngf,eps=1e-05, momentum=0.9, affine=True),
+            nn.ReLU(inplace=True),
             # state size. (ngf) x 32 x 32
             nn.ConvTranspose2d( ngf, nc, kernel_size, stride,g_padding, 1, bias=False),
             nn.Tanh()
@@ -64,31 +72,27 @@ class Generator(nn.Module):
     def forward(self, input):
         return self.main(input)
 
-
-# Discriminator Code
 class Discriminator(nn.Module):
     def __init__(self, ngpu, nz,nc,ndf,kernel_size,stride,d_padding):
         super(Discriminator, self).__init__()
         self.ngpu = ngpu
         self.main = nn.Sequential(
-            # input is (nc) x 64 x 64
             # nn.Conv2d(in_channels, out_channels, kernel_size,stride,padding,output_padding,groups,bias, Dilation,padding_mode)
-            nn.Conv2d(nc, ndf,kernel_size, stride, d_padding,  bias=False),
+            nn.Conv2d(nc, ndf,kernel_size, stride, d_padding,  bias=True),
             nn.BatchNorm2d(ndf,eps=1e-05, momentum=0.9, affine=True),
             nn.LeakyReLU(0.2, inplace=True),
             # state size. (ndf) x 32 x 32
-            nn.Conv2d(ndf, ndf * 2, kernel_size, stride, d_padding, bias=False),
+            nn.Conv2d(ndf, ndf * 2, kernel_size, stride, d_padding, bias=True),
             nn.BatchNorm2d(ndf * 2,eps=1e-05, momentum=0.9, affine=True),
             nn.LeakyReLU(0.2, inplace=True),
             # state size. (ndf*2) x 16 x 16
-            nn.Conv2d(ndf * 2, ndf * 4, kernel_size, stride, d_padding, bias=False),
+            nn.Conv2d(ndf * 2, ndf * 4, kernel_size, stride, d_padding, bias=True),
             nn.BatchNorm2d(ndf * 4,eps=1e-05, momentum=0.9, affine=True),
             nn.LeakyReLU(0.2, inplace=True),
             # state size. (ndf*4) x 8 x 8
-            nn.Conv2d(ndf * 4, ndf * 8, kernel_size, stride, d_padding, bias=False),
+            nn.Conv2d(ndf * 4, ndf * 8, kernel_size, stride, d_padding, bias=True),
             nn.BatchNorm2d(ndf * 8,eps=1e-05, momentum=0.9, affine=True),
             nn.LeakyReLU(0.2, inplace=True),
-            # state size. (ndf*8) x 4 x 4
             nn.Flatten(),
             nn.Linear(nc*ndf*8*8*8, 1)
         )

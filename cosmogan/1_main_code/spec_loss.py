@@ -21,13 +21,19 @@ def f_radial_profile(data, center=(None,None)):
     nr = np.bincount(r.ravel()) 
     radialprofile = tbin / nr
     
-    return radialprofile
+    return radialprofile[1:-1]
 
-def f_compute_spectrum(arr):
+def f_compute_spectrum(arr,GLOBAL_MEAN=0.9998563):
+    
+    
+    arr=((arr - GLOBAL_MEAN)/GLOBAL_MEAN)
     y1=np.fft.fft2(arr)
-    y2=abs(y1)
+    y1=fftpack.fftshift(y1)
+
+    y2=abs(y1)**2
     z1=f_radial_profile(y2)
     return(z1)
+
     
 def f_compute_batch_spectrum(arr):
     batch_pk=np.array([f_compute_spectrum(i) for i in arr])
@@ -56,8 +62,11 @@ def f_image_spectrum(x,num_channels):
 ####################
 ### Pytorch code ###
 ####################
+
 def f_torch_radial_profile(img, center=(None,None)):
-    ''' Module to compute radial profile of a 2D image '''
+    ''' Module to compute radial profile of a 2D image 
+    Bincount causes issues with backprop, so not using this code
+    '''
     
     y,x=torch.meshgrid(torch.arange(0,img.shape[0]),torch.arange(0,img.shape[1])) # Get a grid of x and y values
     if center[0]==None and center[1]==None:
@@ -66,32 +75,198 @@ def f_torch_radial_profile(img, center=(None,None)):
     # get radial values of every pair of points
     r = torch.sqrt((x - center[0])**2 + (y - center[1])**2)
     r= r.int()
-
+    
 #     print(r.shape,img.shape)
     # Compute histogram of r values
     tbin=torch.bincount(torch.reshape(r,(-1,)),weights=torch.reshape(img,(-1,)).type(torch.DoubleTensor))
     nr = torch.bincount(torch.reshape(r,(-1,)))
     radialprofile = tbin / nr
     
-    return radialprofile
+    return radialprofile[1:-1]
 
 
-def f_torch_compute_spectrum(arr):
+def f_torch_get_azimuthalAverage_with_batch(image, center=None): ### Not used in this code.
+    """
+    Calculate the azimuthally averaged radial profile. Only use if you need to combine batches
+
+    image - The 2D image
+    center - The [x,y] pixel coordinates used as the center. The default is 
+             None, which then uses the center of the image (including 
+             fracitonal pixels).
+    source: https://www.astrobetter.com/blog/2010/03/03/fourier-transforms-of-images-in-python/
+    """
+    
+    batch, channel, height, width = image.shape
+    # Create a grid of points with x and y coordinates
+    y, x = np.indices([height,width])
+
+    if not center:
+        center = np.array([(x.max()-x.min())/2.0, (y.max()-y.min())/2.0])
+
+    # Get the radial coordinate for every grid point. Array has the shape of image
+    r = torch.tensor(np.hypot(x - center[0], y - center[1]))
+
+    # Get sorted radii
+    ind = torch.argsort(torch.reshape(r, (batch, channel,-1)))
+    r_sorted = torch.gather(torch.reshape(r, (batch, channel, -1,)),2, ind)
+    i_sorted = torch.gather(torch.reshape(image, (batch, channel, -1,)),2, ind)
+
+    # Get the integer part of the radii (bin size = 1)
+    r_int=r_sorted.to(torch.int32)
+
+    # Find all pixels that fall within each radial bin.
+    deltar = r_int[:,:,1:] - r_int[:,:,:-1]  # Assumes all radii represented
+    rind = torch.reshape(torch.where(deltar)[2], (batch, -1))    # location of changes in radius
+    rind=torch.unsqueeze(rind,1)
+    nr = (rind[:,:,1:] - rind[:,:,:-1]).type(torch.float)       # number of radius bin
+
+    # Cumulative sum to figure out sums for each radius bin
+
+    csum = torch.cumsum(i_sorted, axis=-1)
+#     print(csum.shape,rind.shape,nr.shape)
+
+    tbin = torch.gather(csum, 2, rind[:,:,1:]) - torch.gather(csum, 2, rind[:,:,:-1])
+    radial_prof = tbin / nr
+
+    return radial_prof
+
+
+def f_get_rad(img):
+    ''' Get the radial tensor for use in f_torch_get_azimuthalAverage '''
+    
+    height,width=img.shape[-2:]
+    # Create a grid of points with x and y coordinates
+    y, x = np.indices([height,width])
+    
+    center=[]
+    if not center:
+        center = np.array([(x.max()-x.min())/2.0, (y.max()-y.min())/2.0])
+
+    # Get the radial coordinate for every grid point. Array has the shape of image
+    r = torch.tensor(np.hypot(x - center[0], y - center[1]))
+    
+    # Get sorted radii
+    ind = torch.argsort(torch.reshape(r, (-1,)))
+    
+    return r,ind
+
+
+
+def f_torch_get_azimuthalAverage(image,r,ind):
+    """
+    Calculate the azimuthally averaged radial profile.
+
+    image - The 2D image
+    center - The [x,y] pixel coordinates used as the center. The default is 
+             None, which then uses the center of the image (including 
+             fracitonal pixels).
+    source: https://www.astrobetter.com/blog/2010/03/03/fourier-transforms-of-images-in-python/
+    """
+    
+#     height, width = image.shape
+#     # Create a grid of points with x and y coordinates
+#     y, x = np.indices([height,width])
+
+#     if not center:
+#         center = np.array([(x.max()-x.min())/2.0, (y.max()-y.min())/2.0])
+
+#     # Get the radial coordinate for every grid point. Array has the shape of image
+#     r = torch.tensor(np.hypot(x - center[0], y - center[1]))
+
+#     # Get sorted radii
+#     ind = torch.argsort(torch.reshape(r, (-1,)))
+
+    r_sorted = torch.gather(torch.reshape(r, ( -1,)),0, ind)
+    i_sorted = torch.gather(torch.reshape(image, ( -1,)),0, ind)
+    
+    # Get the integer part of the radii (bin size = 1)
+    r_int=r_sorted.to(torch.int32)
+
+    # Find all pixels that fall within each radial bin.
+    deltar = r_int[1:] - r_int[:-1]  # Assumes all radii represented
+    rind = torch.reshape(torch.where(deltar)[0], (-1,))    # location of changes in radius
+    nr = (rind[1:] - rind[:-1]).type(torch.float)       # number of radius bin
+
+    # Cumulative sum to figure out sums for each radius bin
+    
+    csum = torch.cumsum(i_sorted, axis=-1)
+    tbin = torch.gather(csum, 0, rind[1:]) - torch.gather(csum, 0, rind[:-1])
+    radial_prof = tbin / nr
+
+    return radial_prof
+
+# def f_torch_get_azimuthalAverage(image, center=None):
+#     """
+#     Calculate the azimuthally averaged radial profile.
+
+#     image - The 2D image
+#     center - The [x,y] pixel coordinates used as the center. The default is 
+#              None, which then uses the center of the image (including 
+#              fracitonal pixels).
+#     source: https://www.astrobetter.com/blog/2010/03/03/fourier-transforms-of-images-in-python/
+#     """
+    
+#     height, width = image.shape
+#     # Create a grid of points with x and y coordinates
+#     y, x = np.indices([height,width])
+
+#     if not center:
+#         center = np.array([(x.max()-x.min())/2.0, (y.max()-y.min())/2.0])
+
+#     # Get the radial coordinate for every grid point. Array has the shape of image
+#     r = torch.tensor(np.hypot(x - center[0], y - center[1]))
+
+#     # Get sorted radii
+#     ind = torch.argsort(torch.reshape(r, (-1,)))
+#     print(type(ind),ind.get_device())
+#     r_sorted = torch.gather(torch.reshape(r, ( -1,)),0, ind)
+#     i_sorted = torch.gather(torch.reshape(image, ( -1,)),0, ind)
+
+    
+#     # Get the integer part of the radii (bin size = 1)
+#     r_int=r_sorted.to(torch.int32)
+
+#     # Find all pixels that fall within each radial bin.
+#     deltar = r_int[1:] - r_int[:-1]  # Assumes all radii represented
+#     rind = torch.reshape(torch.where(deltar)[0], (-1,))    # location of changes in radius
+#     nr = (rind[1:] - rind[:-1]).type(torch.float)       # number of radius bin
+
+#     # Cumulative sum to figure out sums for each radius bin
+    
+#     csum = torch.cumsum(i_sorted, axis=-1)
+#     tbin = torch.gather(csum, 0, rind[1:]) - torch.gather(csum, 0, rind[:-1])
+#     radial_prof = tbin / nr
+
+#     return radial_prof
+
+
+def f_torch_fftshift(real, imag):
+    for dim in range(0, len(real.size())):
+        real = torch.roll(real, dims=dim, shifts=real.size(dim)//2)
+        imag = torch.roll(imag, dims=dim, shifts=imag.size(dim)//2)
+    return real, imag
+
+def f_torch_compute_spectrum(arr,r,ind):
+    
+    GLOBAL_MEAN=1.0
+    arr=(arr-GLOBAL_MEAN)/(GLOBAL_MEAN)
     y1=torch.rfft(arr,signal_ndim=2,onesided=False)
-    ## Absolute value of each complex number (last index is real/imag part)
-    y2=torch.sqrt(y1[:,:,0]**2+y1[:,:,1]**2)
-    z1=f_torch_radial_profile(y2)
+    real,imag=f_torch_fftshift(y1[:,:,0],y1[:,:,1])    ## last index is real/imag part
+    y2=real**2+imag**2     ## Absolute value of each complex number
+    
+#     print(y2.shape)
+    z1=f_torch_get_azimuthalAverage(y2,r,ind)     ## Compute radial profile
+#     z1=f_torch_radial_profile(y2)     ## Compute radial profile
+    
     return(z1)
 
-
-def f_torch_compute_batch_spectrum(arr):
+def f_torch_compute_batch_spectrum(arr,r,ind):
     
-    batch_pk=torch.stack([f_torch_compute_spectrum(i) for i in arr])
+    batch_pk=torch.stack([f_torch_compute_spectrum(i,r,ind) for i in arr])
     
     return batch_pk
 
-
-def f_torch_image_spectrum(x,num_channels):
+def f_torch_image_spectrum(x,num_channels,r,ind):
     '''
     Data has to be in the form (batch,channel,x,y)
     '''
@@ -101,14 +276,21 @@ def f_torch_image_spectrum(x,num_channels):
     for i in range(num_channels):
         arr=x[:,i,:,:]
 #         print(i,arr.shape)
-        batch_pk=f_torch_compute_batch_spectrum(arr)
+        batch_pk=f_torch_compute_batch_spectrum(arr,r,ind)
 #         print(batch_pk.shape)
         mean[i]=torch.mean(batch_pk,axis=0)
-        sdev[i]=torch.std(batch_pk,axis=0)
+        sdev[i]=torch.std(batch_pk,axis=0)/np.sqrt(batch_pk.shape[0])
         
     mean=torch.stack(mean)
     sdev=torch.stack(sdev)
     return mean,sdev
+
+def f_compute_hist(data,bins):
+    hist_data=torch.histc(data,bins=bins)
+    ## A kind of normalization of histograms: divide by total sum
+    hist_data=(hist_data*bins)/torch.sum(hist_data)
+
+    return hist_data
 
 ### Losses 
 def loss_spectrum(spec_mean,spec_mean_ref,spec_std,spec_std_ref,image_size):
@@ -118,24 +300,16 @@ def loss_spectrum(spec_mean,spec_mean_ref,spec_std,spec_std_ref,image_size):
     
     idx=int(image_size/2) ### For the spectrum, use only N/2 indices for loss calc.
     
-#    spec_mean=torch.log(torch.mean(torch.pow(spec_mean[:,idx]-spec_mean_ref[:,idx],2)))
-#    spec_sdev=torch.log(torch.mean(torch.pow(spec_std[:,idx]-spec_std_ref[:,idx],2)))
-    spec_mean=torch.mean(torch.pow(spec_mean[:,idx]-spec_mean_ref[:,idx],2))
-    spec_sdev=torch.mean(torch.pow(spec_std[:,idx]-spec_std_ref[:,idx],2))
-     
-    lambda1=0.002;lambda2=0.002;
-    ans=lambda1*spec_mean+lambda2*spec_sdev
-    return ans.item()
-
-def loss_hist(data,hist_data):
+    ### Warning: the first index is the channel number.For multiple channels, you are averaging over them, which is fine.
+    spec_mean=torch.log(torch.mean(torch.pow(spec_mean[:,:idx]-spec_mean_ref[:,:idx],2)))
+    spec_sdev=torch.log(torch.mean(torch.pow(spec_std[:,:idx]-spec_std_ref[:,:idx],2)))
     
-    hist_sample=torch.histc(data,bins=50)
-    ## A kind of normalization of histograms: divide by total sum
-    hist_sample=hist_sample/torch.sum(hist_sample)
-    hist_data=hist_data/torch.sum(hist_data)
+    lambda1=1.0;lambda2=1.0;
+    ans=lambda1*spec_mean+lambda2*spec_sdev
+    return ans
 
-    lambda1=1000.0
-    #return torch.log(torch.mean(torch.pow(hist_sample-hist_data,2))).item()
-    return lambda1*torch.mean(torch.pow(hist_sample-hist_data,2)).item()
-
-
+def loss_hist(hist_sample,hist_ref):
+    
+    lambda1=1.0
+    return torch.log(torch.mean(torch.pow(hist_sample-hist_ref,2)))
+#     return lambda1*torch.mean(torch.pow(hist_sample-hist_ref,2)).item()
