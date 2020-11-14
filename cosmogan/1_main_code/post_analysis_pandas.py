@@ -154,13 +154,16 @@ def f_compute_chisqr(dict_val,dict_sample):
         chisqr_dict.update({'chi_2':np.sum(np.divide(sq_diff[:idx],1.0))}) ## chi-sqr without denominator division
         chisqr_dict.update({'chi_imgvar':np.sum(dict_sample['hist_err'][:idx])/np.sum(dict_val['hist_err'][:idx])}) ## measures total spread in histograms wrt to input data
 
-        idx=60
+        idx=64
         spec_diff=(dict_val['spec_val']-dict_sample['spec_val'])**2
         ### computing the spectral loss chi-square
         chisqr_dict.update({'chi_spec1':np.sum(spec_diff[:idx]/dict_sample['spec_val'][:idx]**2)})
 
         ### computing the spectral loss chi-square
         chisqr_dict.update({'chi_spec2':np.sum(spec_diff[:idx]/dict_sample['spec_err'][:idx]**2)})
+        
+        spec_loss=1.0*np.log(np.mean((dict_val['spec_val'][:idx]-dict_sample['spec_val'][:idx])**2))+1.0*np.log(np.mean((dict_val['spec_err'][:idx]-dict_sample['spec_err'][:idx])**2))
+        chisqr_dict.update({'chi_spec3':spec_loss})
     
     except Exception as e: 
         print(e)
