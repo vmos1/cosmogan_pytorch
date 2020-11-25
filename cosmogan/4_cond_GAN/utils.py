@@ -9,22 +9,12 @@ def f_load_config(config_file):
         config = yaml.load(f, Loader=yaml.SafeLoader)
     return config
 
-class Tee(object):
-    ''' class for writing log to file and stdout '''
-    def __init__(self, *files):
-        self.files = files
-    def write(self, obj):
-        for f in self.files:
-            f.write(obj)
-
-
 ### Transformation functions for image pixel values
 def f_transform(x):
     return 2.*x/(x + 4.) - 1.
 
 def f_invtransform(s):
     return 4.*(1. + s)/(1. - s)
-
 
 # custom weights initialization called on netG and netD
 def weights_init(m):
@@ -34,9 +24,7 @@ def weights_init(m):
     elif classname.find('BatchNorm') != -1:
         nn.init.normal_(m.weight.data, 1.0, 0.02)
         nn.init.constant_(m.bias.data, 0)
-    elif classname.find('Linear') != -1:
-        nn.init.normal_(m.weight.data, 1.0, 0.02)
-        
+
 # Generator Code
 class View(nn.Module):
     def __init__(self, shape):
@@ -46,17 +34,17 @@ class View(nn.Module):
     def forward(self, x):
         return x.view(*self.shape)
 
-
 class Generator(nn.Module):
-    def __init__(self, ngpu,nz,nc,ngf,kernel_size,stride,g_padding):
+    def __init__(self, num_classes,ngpu,nz,nc,ngf,kernel_size,stride,g_padding):
         super(Generator, self).__init__()
         self.ngpu = ngpu
 #         self.nz,self.nc,self.ngf=nz,nc,ngf
 #         self.kernel_size,self.g_padding=kernel_size,g_padding
-
+        
+        self.label_embedding=nn.Embedding(num_classes,num_classes)
         self.main = nn.Sequential(
             # nn.ConvTranspose2d(in_channels, out_channels, kernel_size,stride,padding,output_padding,groups,bias, Dilation,padding_mode)
-            nn.Linear(nz,nc*ngf*8*8*8),# 32768
+            nn.Linear(nz+num_classes,nc*ngf*8*8*8),# 32768
             nn.BatchNorm2d(nc,eps=1e-05, momentum=0.9, affine=True),
             nn.ReLU(inplace=True),
             View(shape=[-1,ngf*8,8,8]),
@@ -74,19 +62,30 @@ class Generator(nn.Module):
             # state size. (ngf) x 32 x 32
             nn.ConvTranspose2d( ngf, nc, kernel_size, stride,g_padding, 1, bias=False),
             nn.Tanh()
-            # state size. (nc) x 64 x 64
         )
     
-    def forward(self, input):
-        return self.main(input)
+    def forward(self, noise,labels):
+#         print(noise.shape,labels.shape,noise.get_device(),labels.get_device())
+#         print(self.label_embedding(labels).shape)
+        gen_input=torch.cat((self.label_embedding(labels),noise),-1)
+        img=self.main(gen_input)
+#         print(type(img),img.size())
+#         img=img.view(128,nc,128,128))
+        
+        return img
+
 
 class Discriminator(nn.Module):
-    def __init__(self, ngpu, nz,nc,ndf,kernel_size,stride,d_padding):
+    def __init__(self, num_classes, ngpu, nz,nc,ndf,kernel_size,stride,d_padding):
         super(Discriminator, self).__init__()
+        
+        self.label_embedding=nn.Embedding(num_classes,num_classes)
+
         self.ngpu = ngpu
         self.main = nn.Sequential(
+            # input is (nc) x 64 x 64
             # nn.Conv2d(in_channels, out_channels, kernel_size,stride,padding,output_padding,groups,bias, Dilation,padding_mode)
-            nn.Conv2d(nc, ndf,kernel_size, stride, d_padding,  bias=True),
+            nn.Conv2d(nc+1, ndf,kernel_size, stride, d_padding,  bias=True),
             nn.BatchNorm2d(ndf,eps=1e-05, momentum=0.9, affine=True),
             nn.LeakyReLU(0.2, inplace=True),
             # state size. (ndf) x 32 x 32
@@ -101,14 +100,28 @@ class Discriminator(nn.Module):
             nn.Conv2d(ndf * 4, ndf * 8, kernel_size, stride, d_padding, bias=True),
             nn.BatchNorm2d(ndf * 8,eps=1e-05, momentum=0.9, affine=True),
             nn.LeakyReLU(0.2, inplace=True),
+            # state size. (ndf*8) x 4 x 4
             nn.Flatten(),
             nn.Linear(nc*ndf*8*8*8, 1)
+#             nn.Sigmoid()
         )
+    
+    def forward(self, img,labels):
+        img_size=128
+        a=self.label_embedding(labels)
+        x=a.view(a.size(0),-1)
+        y=nn.Linear(4,4)
+        x=y(x)
+        x=torch.repeat_interleave(x,int((img_size*img_size)/4))
+        x=x.view(a.size(0),1,img_size,img_size)
+#         print(x.size())
+        d_input=torch.cat((img,x),axis=1)
+#         d_input=torch.cat((img,self.label_embedding(labels)),-1)
+        pred=self.main(d_input)
+        return pred
 
-    def forward(self, input):
-        return self.main(input)
 
-def f_gen_images(netG,optimizerG,nz,device,ip_fname,strg,save_dir,op_size=500):
+def f_gen_images(netG,optimizerG,nz,label,device,ip_fname,strg,save_dir,op_size=500):
     '''Generate images for best saved models
      Arguments: ip_fname: name of input file
                 strg: ['hist' or 'spec']
@@ -134,7 +147,7 @@ def f_gen_images(netG,optimizerG,nz,device,ip_fname,strg,save_dir,op_size=500):
     noise = torch.randn(op_size, 1, 1, nz, device=device)
     # Generate fake image batch with G
     netG.eval() ## This is required before running inference
-    gen = netG(noise)
+    gen = netG(noise,label)
     gen_images=gen.detach().cpu().numpy()[:,0,:,:]
     print(gen_images.shape)
 
@@ -150,8 +163,8 @@ def f_save_checkpoint(epoch,iters,best_chi1,best_chi2,netG,netD,optimizerG,optim
     torch.save({'epoch':epoch,'iters':iters,'best_chi1':best_chi1,'best_chi2':best_chi2,
                 'G_state':netG.state_dict(),'D_state':netD.state_dict(),'optimizerG_state_dict':optimizerG.state_dict(),
                 'optimizerD_state_dict':optimizerD.state_dict()}, save_loc) 
-    
-    
+
+
 def f_load_checkpoint(ip_fname,netG,netD,optimizerG,optimizerD):
     ''' Load saved checkpoint
     Also loads step, epoch, best_chi1, best_chi2'''

@@ -4,7 +4,7 @@ data:
     ip_fname: '/global/cfs/cdirs/m3363/vayyar/cosmogan_data/raw_data/128_square/dataset_2_smoothing_200k/norm_1_train_val.npy'
     op_loc: '/global/cfs/cdirs/m3363/vayyar/cosmogan_data/results_from_other_code/pytorch/results/128sq/'
     image_size: 128
-    checkpoint_size: 10
+    checkpoint_size: 50
     num_imgs: 200000
 training:
     workers: 2 #Number of workers for dataloader

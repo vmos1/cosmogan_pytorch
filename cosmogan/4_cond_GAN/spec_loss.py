@@ -273,3 +273,31 @@ def loss_hist(hist_sample,hist_ref):
     
     lambda1=1.0
     return lambda1*torch.log(torch.mean(torch.pow(hist_sample-hist_ref,2)))
+
+#### Special functions for Conditional GAN ####
+def f_get_hist_cond(img_tensor,categories,bins):
+    ''' Module to compute pixel intensity histogram loss for conditional GAN '''
+    loss_hist_tensor=torch.zeros(num_classes,device=device)
+    for i in np.arange(num_classes):    
+        idxs=torch.where(categories==i)[0] ## Get indices for that category
+    #     print(i,idxs.size(0))
+        if idxs.size(0)>1: 
+            img=img_tensor[idxs]
+            loss_hist_tensor[i]=loss_hist(f_compute_hist(img,bins),hist_val_list[i].to(device))
+    hist_loss=loss_hist_tensor.sum()
+    
+    return hist_loss
+
+def f_get_spec_cond(img_tensor,categories):
+    ''' Module to compute spectral loss for conditional GAN '''
+    loss_spec_tensor=torch.zeros(num_classes,device=device)
+    for i in np.arange(num_classes):    
+        idxs=torch.where(categories==i)[0] ## Get indices for that category
+    #     print(i,idxs.size(0))
+        if idxs.size(0)>1: 
+            img=img_tensor[idxs]
+            mean,sdev=f_torch_image_spectrum(f_invtransform(img),1,r.to(device),ind.to(device))
+            loss_spec_tensor[i]=loss_spectrum(mean,spec_mean_list[i].to(device),sdev,spec_sdev_list[i].to(device),image_size)
+    spec_loss=loss_spec_tensor.sum()
+    return spec_loss
+

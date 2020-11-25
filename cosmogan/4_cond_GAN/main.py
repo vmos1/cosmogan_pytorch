@@ -74,47 +74,55 @@ def f_train_loop(dataloader,metrics_df,start_epoch,num_epochs,iters,best_chi1,be
             netD.zero_grad()
 
             real_cpu = data[0].to(device)
+            real_categories=data[1].to(device)
+            
             b_size = real_cpu.size(0)
             real_label = torch.full((b_size,), 1, device=device)
             fake_label = torch.full((b_size,), 0, device=device)
-            g_label = torch.full((b_size,), 1, device=device) ## No flipping for Generator labels
-            # Flip labels with probability flip_prob
+            g_label = torch.full((b_size,), 1, device=device) # No flipping for Generator labels
+            # Flip labels with probability flip_prob for Discriminator
             for idx in np.random.choice(np.arange(b_size),size=int(np.ceil(b_size*flip_prob))):
                 real_label[idx]=0; fake_label[idx]=1
-
+            
             # Generate fake image batch with G
             noise = torch.randn(b_size, 1, 1, nz, device=device)
-            fake = netG(noise)            
-
+#             fake_categories=torch.LongTensor(np.random.randint(0, num_classes, batch_size)).view(batch_size,1,1)
+            fake_categories=torch.randint(num_classes,(1,batch_size),device=device).long().view(batch_size,1,1)
+            fake = netG(noise,fake_categories)            
+            
             # Forward pass real batch through D
-            output = netD(real_cpu).view(-1)
+            output = netD(real_cpu,real_categories).view(-1)
             errD_real = criterion(output, real_label)
             errD_real.backward()
             D_x = output.mean().item()
-
-            # Forward pass real batch through D
-            output = netD(fake.detach()).view(-1)
+            
+            # Forward pass fake batch through D
+            output = netD(fake.detach(),fake_categories).view(-1)
             errD_fake = criterion(output, fake_label)
             errD_fake.backward()
             D_G_z1 = output.mean().item()
             errD = errD_real + errD_fake
             optimizerD.step()
-
+            
             ###Update G network: maximize log(D(G(z)))
             netG.zero_grad()
-            output = netD(fake).view(-1)
+            output = netD(fake,fake_categories).view(-1)
             errG_adv = criterion(output, g_label)
             # Histogram pixel intensity loss
-            hist_gen=f_compute_hist(fake,bins=bns)
-            hist_loss=loss_hist(hist_gen,hist_val.to(device))
-
-            # Add spectral loss
-            mean,sdev=f_torch_image_spectrum(f_invtransform(fake),1,r.to(device),ind.to(device))
-            spec_loss=loss_spectrum(mean,mean_spec_val.to(device),sdev,sdev_spec_val.to(device),image_size)
             
+#             hist_gen=f_compute_hist(fake,bins=bns)
+#             hist_loss=loss_hist(hist_gen,hist_val.to(device))
+            hist_loss=f_get_hist_cond(fake,fake_categories,bins=bns)
+            
+            # Add spectral loss
+#             mean,sdev=f_torch_image_spectrum(f_invtransform(fake),1,r.to(device),ind.to(device))
+#             spec_loss=loss_spectrum(mean,mean_spec_val.to(device),sdev,sdev_spec_val.to(device),image_size)
+#             logging.info(fake.device,fake_categories.device)
+            spec_loss=f_get_spec_cond(fake,fake_categories)
+
             if spec_loss_flag: errG=errG_adv+spec_loss
             else: errG=errG_adv
-
+#             errG=errG_adv
             if torch.isnan(errG).any():
                 logging.info(errG)
                 raise SystemError
@@ -123,9 +131,9 @@ def f_train_loop(dataloader,metrics_df,start_epoch,num_epochs,iters,best_chi1,be
             errG.backward()
             D_G_z2 = output.mean().item()
             optimizerG.step()
-
+            
             tme2=time.time()
-
+            
             ####### Store metrics ########
             # Output training stats
             if count % checkpoint_size == 0:
@@ -146,12 +154,14 @@ def f_train_loop(dataloader,metrics_df,start_epoch,num_epochs,iters,best_chi1,be
             ### Compute validation metrics for updated model
             netG.eval()
             with torch.no_grad():
-                #fake = netG(fixed_noise).detach().cpu()
-                fake = netG(fixed_noise)
-                hist_gen=f_compute_hist(fake,bins=bns)
-                hist_chi=loss_hist(hist_gen,hist_val.to(device))
-                mean,sdev=f_torch_image_spectrum(f_invtransform(fake),1,r.to(device),ind.to(device))
-                spec_chi=loss_spectrum(mean,mean_spec_val.to(device),sdev,sdev_spec_val.to(device),image_size)      
+                fake = netG(fixed_noise,fixed_categories)
+#                 hist_gen=f_compute_hist(fake,bins=bns)
+#                 hist_chi=loss_hist(hist_gen,hist_val.to(device))
+#                 mean,sdev=f_torch_image_spectrum(f_invtransform(fake),1,r.to(device),ind.to(device))
+#                 spec_chi=loss_spectrum(mean,mean_spec_val.to(device),sdev,sdev_spec_val.to(device),image_size)      
+                hist_chi=f_get_hist_cond(fake,fixed_categories,bins=bns)
+                spec_chi=f_get_spec_cond(fake,fixed_categories)
+
             # Storing chi for next step
             for col,val in zip(['spec_chi','hist_chi'],[spec_chi.item(),hist_chi.item()]):  metrics_df.loc[iters,col]=val            
 
@@ -174,10 +184,14 @@ def f_train_loop(dataloader,metrics_df,start_epoch,num_epochs,iters,best_chi1,be
             if ((iters % checkpoint_size == 0) or ((epoch == num_epochs-1) and (count == len(dataloader)-1))):
                 netG.eval()
                 with torch.no_grad():
-                    fake = netG(fixed_noise).detach().cpu()
-                    img_arr=np.array(fake[:,0,:,:])
-                    fname='gen_img_epoch-%s_step-%s'%(epoch,iters)
-                    np.save(save_dir+'/images/'+fname,img_arr)
+                    for category in range(num_classes):
+#                         cat_tensor=torch.LongTensor(np.ones(batch_size)*category).view(batch_size,1,1)
+                        cat_tensor=(torch.ones(batch_size,device=device)*category).long().view(batch_size,1,1)
+
+                        fake = netG(fixed_noise,cat_tensor).detach().cpu()
+                        img_arr=np.array(fake[:,0,:,:])
+                        fname='gen_img_label-%s_epoch-%s_step-%s'%(category,epoch,iters)
+                        np.save(save_dir+'/images/'+fname,img_arr)
         
         t_epoch_end=time.time()
         logging.info("Time taken for epoch %s: %s"%(epoch,t_epoch_end-t_epoch_start))
@@ -185,6 +199,7 @@ def f_train_loop(dataloader,metrics_df,start_epoch,num_epochs,iters,best_chi1,be
         metrics_df.to_pickle(save_dir+'/df_metrics.pkle')
         
     logging.info("best chis: {0}, {1}".format(best_chi1,best_chi2))
+    
 
 #########################
 ### Main code #######
@@ -192,7 +207,7 @@ def f_train_loop(dataloader,metrics_df,start_epoch,num_epochs,iters,best_chi1,be
 
 if __name__=='__main__':
     torch.backends.cudnn.benchmark=True
-    torch.backends.cudnn.deterministic=True
+#     torch.backends.cudnn.deterministic=True
 #     torch.autograd.set_detect_anomaly(True)
     
     t0=time.time()
@@ -222,7 +237,8 @@ if __name__=='__main__':
     if spec_loss_flag: logging.info("Using Spectral loss")
     lr=args.learn_rate
     bns=50
-#     num_imgs=2000
+    num_classes=4
+    num_imgs=200
     
     ###### Set up directories ####### ( different for jupter notebook)
     if args.mode=='fresh':
@@ -278,39 +294,63 @@ if __name__=='__main__':
  
     #################################
     ####### Read data and precompute ######
-    # ip_fname='/global/cfs/cdirs/m3363/vayyar/cosmogan_data/raw_data/128_square/dataset_2_smoothing_200k/norm_1_train_val.npy'
-    img=np.load(ip_fname)[:num_imgs].transpose(0,1,2,3)
-    t_img=torch.from_numpy(img)
-    logging.info("%s, %s"%(img.shape,t_img.shape))
+    ### Read data from different files
+    sigma_list=[0.5,0.65,0.8,1.1]
+    for count,sigma in enumerate(sigma_list):
+        ip_fname='/global/cfs/cdirs/m3363/vayyar/cosmogan_data/raw_data/128_square/dataset_5_4univ_cgan/norm_1_sig_%s_train_val.npy'%(sigma)
+        x=np.load(ip_fname,mmap_mode='r')[:num_imgs].transpose(0,1,2,3)
+        size=x.shape[0]
+        y=count*np.ones(size)
 
-    dataset=TensorDataset(t_img)
+        if count ==0: 
+            img=x[:]
+            lab=y[:]
+        else: 
+            img=np.vstack([img,x])
+            lab=np.hstack([lab,y])
+
+    t_img=torch.from_numpy(img)
+    labels=torch.LongTensor(lab).view(size*4,1,1)
+    logging.info("%s, %s"%(labels.shape,t_img.shape))
+    
+    dataset=TensorDataset(t_img,labels)
     dataloader=DataLoader(dataset,batch_size=batch_size,shuffle=True,num_workers=1,drop_last=True)
 
     # Precompute metrics with validation data for computing losses
     with torch.no_grad():
-        val_img=np.load(ip_fname)[-3000:].transpose(0,1,2,3)
-        t_val_img=torch.from_numpy(val_img)
+        spec_mean_list=[];spec_sdev_list=[];hist_val_list=[]
+        
+        for count,sigma in enumerate(sigma_list):
+            ip_fname='/global/cfs/cdirs/m3363/vayyar/cosmogan_data/raw_data/128_square/dataset_5_4univ_cgan/norm_1_sig_%s_train_val.npy'%(sigma)
+            val_img=np.load(ip_fname,mmap_mode='r')[-3000:].transpose(0,1,2,3)
+            t_val_img=torch.from_numpy(val_img)
 
-        # Precompute radial coordinates
-        r,ind=f_get_rad(img)
-        # Stored mean and std of spectrum for full input data once
-        mean_spec_val,sdev_spec_val=f_torch_image_spectrum(f_invtransform(t_val_img),1,r,ind)
-        hist_val=f_compute_hist(t_val_img,bins=bns)
+            # Precompute radial coordinates
+            if count==0: r,ind=f_get_rad(img)
+        
+            # Stored mean and std of spectrum for full input data once
+            mean_spec_val,sdev_spec_val=f_torch_image_spectrum(f_invtransform(t_val_img),1,r,ind)
+            hist_val=f_compute_hist(t_val_img,bins=bns)
+            
+            spec_mean_list.append(mean_spec_val)
+            spec_sdev_list.append(sdev_spec_val)
+            hist_val_list.append(hist_val)
+
         del val_img; del t_val_img; del img; del t_img
 
     #################################
     ###### Build Networks ###
     logging.info("Building GAN networks")
     # Create Generator
-    netG = Generator(ngpu,nz,nc,ngf,kernel_size,stride,g_padding).to(device)
+    netG = Generator(num_classes,ngpu,nz,nc,ngf,kernel_size,stride,g_padding).to(device)
     netG.apply(weights_init)
     logging.info(netG)
-    summary(netG,(1,1,64))
+#     summary(netG,(1,1,64))
     # Create Discriminator
-    netD = Discriminator(ngpu, nz,nc,ndf,kernel_size,stride,g_padding).to(device)
+    netD = Discriminator(num_classes,ngpu, nz,nc,ndf,kernel_size,stride,g_padding).to(device)
     netD.apply(weights_init)
     logging.info(netD)
-    summary(netD,(1,128,128))
+#     summary(netD,(1,128,128))
     # Handle multi-gpu if desired
     ngpu=torch.cuda.device_count()
     
@@ -323,6 +363,8 @@ if __name__=='__main__':
     # criterion = nn.BCELoss()
     criterion = nn.BCEWithLogitsLoss()
     fixed_noise = torch.randn(batch_size, 1, 1, nz, device=device) #Latent vectors to view G progress
+    fixed_categories=torch.randint(num_classes,(1,batch_size),device=device).long().view(batch_size,1,1)
+
     # Setup Adam optimizers for both G and D
     optimizerD = optim.Adam(netD.parameters(), lr=lr, betas=(beta1, 0.999),eps=1e-7)
     optimizerG = optim.Adam(netG.parameters(), lr=lr, betas=(beta1, 0.999),eps=1e-7)
