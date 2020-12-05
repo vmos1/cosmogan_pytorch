@@ -1,6 +1,7 @@
 
 import numpy as np
 import torch
+from utils import *
 
 ############
 ### Numpy functions ### Not used in the code. Just to test the pytorch functions
@@ -223,6 +224,7 @@ def f_torch_image_spectrum(x,num_channels,r,ind):
     '''
     Data has to be in the form (batch,channel,x,y)
     '''
+    
     mean=[[] for i in range(num_channels)]    
     sdev=[[] for i in range(num_channels)]    
 
@@ -269,35 +271,42 @@ def loss_spectrum(spec_mean,spec_mean_ref,spec_std,spec_std_ref,image_size):
     
     return ans
     
+
 def loss_hist(hist_sample,hist_ref):
     
     lambda1=1.0
     return lambda1*torch.log(torch.mean(torch.pow(hist_sample-hist_ref,2)))
 
-#### Special functions for Conditional GAN ####
-def f_get_hist_cond(img_tensor,categories,bins):
+
+def f_get_hist_cond(img_tensor,categories,bins,gdict,hist_val_tnsr):
     ''' Module to compute pixel intensity histogram loss for conditional GAN '''
+    num_classes=gdict['num_classes'];device=gdict['device']
+    
     loss_hist_tensor=torch.zeros(num_classes,device=device)
     for i in np.arange(num_classes):    
         idxs=torch.where(categories==i)[0] ## Get indices for that category
     #     print(i,idxs.size(0))
         if idxs.size(0)>1: 
             img=img_tensor[idxs]
-            loss_hist_tensor[i]=loss_hist(f_compute_hist(img,bins),hist_val_list[i].to(device))
+            loss_hist_tensor[i]=loss_hist(f_compute_hist(img,bins),hist_val_tnsr[i])
     hist_loss=loss_hist_tensor.sum()
     
     return hist_loss
 
-def f_get_spec_cond(img_tensor,categories):
+def f_get_spec_cond(img_tensor,categories,gdict,spec_mean_tnsr,spec_sdev_tnsr,r,ind):
     ''' Module to compute spectral loss for conditional GAN '''
+    num_classes=gdict['num_classes'];device=gdict['device']
+    
     loss_spec_tensor=torch.zeros(num_classes,device=device)
     for i in np.arange(num_classes):    
         idxs=torch.where(categories==i)[0] ## Get indices for that category
     #     print(i,idxs.size(0))
         if idxs.size(0)>1: 
             img=img_tensor[idxs]
-            mean,sdev=f_torch_image_spectrum(f_invtransform(img),1,r.to(device),ind.to(device))
-            loss_spec_tensor[i]=loss_spectrum(mean,spec_mean_list[i].to(device),sdev,spec_sdev_list[i].to(device),image_size)
+            mean,sdev=f_torch_image_spectrum(f_invtransform(img),1,r,ind)
+            loss_spec_tensor[i]=loss_spectrum(mean,spec_mean_tnsr[i],sdev,spec_sdev_tnsr[i],gdict['image_size'])
     spec_loss=loss_spec_tensor.sum()
     return spec_loss
+
+
 

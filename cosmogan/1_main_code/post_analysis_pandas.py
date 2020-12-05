@@ -29,7 +29,8 @@ def parse_args():
     add_arg('--val_data','-v', type=str, default='/global/cfs/cdirs/m3363/vayyar/cosmogan_data/raw_data/128_square/dataset_2_smoothing_200k/norm_1_train_val.npy',help='The .npy file with input data to compare with')
     add_arg('--folder','-f', type=str,help='The full path of the folder containing the data to analyze.')
     add_arg('--cores','-c', type=int, default=64,help='Number of cores to use for parallelization')
-   
+    add_arg('--bins_type','-bin', type=str, default='uneven',help='Number of cores to use for parallelization')
+    
     return parser.parse_args()
 
 ### Transformation functions for image pixel values
@@ -97,9 +98,9 @@ def f_compute_hist_spect(sample,bins):
     ### Compute pixel histogram for row
     gen_hist,gen_err,hist_bins=f_batch_histogram(sample,bins=bins,norm=True,hist_range=None)
     ### Compute spectrum for row
-    spec,spec_err=f_compute_spectrum(sample,plot=False)
+    spec,spec_sdev=f_compute_spectrum(sample,plot=False)
 
-    dict1={'hist_val':gen_hist,'hist_err':gen_err,'hist_bin_centers':hist_bins,'spec_val':spec,'spec_err':spec_err }
+    dict1={'hist_val':gen_hist,'hist_err':gen_err,'hist_bin_centers':hist_bins,'spec_val':spec,'spec_sdev':spec_sdev }
     return dict1
 
 def f_get_images(fname,img_type):
@@ -160,9 +161,9 @@ def f_compute_chisqr(dict_val,dict_sample):
         chisqr_dict.update({'chi_spec1':np.sum(spec_diff[:idx]/dict_sample['spec_val'][:idx]**2)})
 
         ### computing the spectral loss chi-square
-        chisqr_dict.update({'chi_spec2':np.sum(spec_diff[:idx]/dict_sample['spec_err'][:idx]**2)})
+        chisqr_dict.update({'chi_spec2':np.sum(spec_diff[:idx]/dict_sample['spec_sdev'][:idx]**2)})
         
-        spec_loss=1.0*np.log(np.mean((dict_val['spec_val'][:idx]-dict_sample['spec_val'][:idx])**2))+1.0*np.log(np.mean((dict_val['spec_err'][:idx]-dict_sample['spec_err'][:idx])**2))
+        spec_loss=1.0*np.log(np.mean((dict_val['spec_val'][:idx]-dict_sample['spec_val'][:idx])**2))+1.0*np.log(np.mean((dict_val['spec_sdev'][:idx]-dict_sample['spec_sdev'][:idx])**2))
         chisqr_dict.update({'chi_spec3':spec_loss})
     
     except Exception as e: 
@@ -191,7 +192,7 @@ def f_get_computed_dict(fname,img_type,bins,dict_val):
     
     dict1={}
     dict1.update(dict_chisqrs)
-    dict1.update({'num_large':high_pixel,'num_vlarge':very_high_pixel})
+    dict1.update({'num_imgs':images.shape[0],'num_large':high_pixel,'num_vlarge':very_high_pixel})
     dict1.update(dict_sample)
     
     return dict1
@@ -221,11 +222,15 @@ if __name__=="__main__":
     ### Compute 
     t1=time.time()
     transform=False ## Images are in transformed space (-1,1), convert bins to the same space
-    bins=np.concatenate([np.array([-0.5]),np.arange(0.5,20.5,1),np.arange(20.5,100.5,5),np.arange(100.5,1000.5,50),np.array([2000])]) #bin edges to use
+    if args.bins_type=='uneven':
+        bins=np.concatenate([np.array([-0.5]),np.arange(0.5,20.5,1),np.arange(20.5,100.5,5),np.arange(100.5,1000.5,50),np.array([2000])]) #bin edges to use
+    else : 
+        bins=np.arange(0,1510,10)
+    print("Bins",bins)
     if not transform: bins=f_transform(bins)   ### scale to (-1,1) 
     ### Compute histogram and spectrum of raw data 
     dict_val=f_compute_hist_spect(s_val,bins)
-
+    
     ### Parallel CPU test
 #   ##Using pandarallel : https://stackoverflow.com/questions/26784164/pandas-multiprocessing-apply
 
