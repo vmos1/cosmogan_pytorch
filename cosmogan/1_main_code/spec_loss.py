@@ -252,7 +252,7 @@ def f_compute_hist(data,bins):
     return hist_data
 
 ### Losses 
-def loss_spectrum(spec_mean,spec_mean_ref,spec_std,spec_std_ref,image_size):
+def loss_spectrum(spec_mean,spec_mean_ref,spec_std,spec_std_ref,image_size,lambda1):
     ''' Loss function for the spectrum : mean + variance 
     Log(sum( batch value - expect value) ^ 2 )) '''
     
@@ -262,7 +262,8 @@ def loss_spectrum(spec_mean,spec_mean_ref,spec_std,spec_std_ref,image_size):
     spec_mean=torch.log(torch.mean(torch.pow(spec_mean[:,:idx]-spec_mean_ref[:,:idx],2)))
     spec_sdev=torch.log(torch.mean(torch.pow(spec_std[:,:idx]-spec_std_ref[:,:idx],2)))
     
-    lambda1=1.0;lambda2=1.0;
+    lambda1=lambda1;
+    lambda2=lambda1;
     ans=lambda1*spec_mean+lambda2*spec_sdev
     
     if torch.isnan(spec_sdev).any():    print("spec loss with nan",ans)
@@ -273,3 +274,4 @@ def loss_hist(hist_sample,hist_ref):
     
     lambda1=1.0
     return lambda1*torch.log(torch.mean(torch.pow(hist_sample-hist_ref,2)))
+

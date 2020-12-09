@@ -10,23 +10,25 @@
 # - https://github.com/pytorch/tutorials/blob/11569e0db3599ac214b03e01956c2971b02c64ce/beginner_source/dcgan_faces_tutorial.py
 # - https://github.com/exalearn/epiCorvid/tree/master/cGAN
 
-import argparse
 import os
-import sys
 # import random
+import logging
+import sys
+
 import torch
 import torch.nn as nn
 import torch.nn.parallel
 import torch.backends.cudnn as cudnn
 import torch.optim as optim
 import torch.utils.data
-# import torchvision.utils as vutils
 from torchsummary import summary
+from torch.utils.data import DataLoader, TensorDataset
 
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from torch.utils.data import DataLoader, TensorDataset
+import matplotlib.animation as animation
+from IPython.display import HTML
 
 import argparse
 import time
@@ -34,8 +36,7 @@ from datetime import datetime
 import glob
 import pickle
 import yaml
-
-import logging
+import collections
 
 # Import modules from other files
 from utils import *
@@ -56,13 +57,27 @@ def f_parse_args():
     add_arg('--batchsize','-b',  type=int, default=64, help='batchsize')
     add_arg('--learn_rate','-lr',  type=float, default=0.0002, help='Learn rate')
     add_arg('--lambda1','-ld1',  type=float, default=1.0, help='Coupling for spectral loss values')
-    add_arg('--specloss','-spl',action='store_true', help='Whether to use spectral loss')
+    add_arg('--specloss','-spl',dest='spec_loss_flag',action='store_true', help='Whether to use spectral loss')
+    add_arg('--deterministic','-dt',action='store_true', help='Run with deterministic sequence')
+    add_arg('--lst','-l', dest='save_steps_list', nargs='*', type = int, default=[], help='List of step values to save model. Usually used for re-run with deterministic')
+
     return parser.parse_args()
 
-def f_train_loop(dataloader,metrics_df,start_epoch,num_epochs,iters,best_chi1,best_chi2,save_dir):
+def f_init_gdict(gdict,config_dict):
+    ''' Initialize the global dictionary gdict with values in config file'''
+    keys1=['workers','nc','nz','ngf','ndf','beta1','kernel_size','stride','g_padding','d_padding','flip_prob']
+    keys2=['image_size','checkpoint_size','num_imgs','ip_fname','op_loc']
+    for key in keys1: gdict[key]=config_dict['training'][key]
+    for key in keys2: gdict[key]=config_dict['data'][key]
+        
+def f_train_loop(dataloader,metrics_df,gdict):
     ''' Train single epoch '''
     
-    for epoch in range(start_epoch,num_epochs):
+    ## Define new variables from dict
+    keys=['image_size','start_epoch','epochs','iters','best_chi1','best_chi2','save_dir','device','flip_prob','nz','batchsize','bns']
+    image_size,start_epoch,epochs,iters,best_chi1,best_chi2,save_dir,device,flip_prob,nz,batchsize,bns=list(collections.OrderedDict({key:gdict[key] for key in keys}).values())
+    
+    for epoch in range(start_epoch,epochs):
         t_epoch_start=time.time()
         for count, data in enumerate(dataloader, 0):
             
@@ -110,9 +125,9 @@ def f_train_loop(dataloader,metrics_df,start_epoch,num_epochs,iters,best_chi1,be
 
             # Add spectral loss
             mean,sdev=f_torch_image_spectrum(f_invtransform(fake),1,r.to(device),ind.to(device))
-            spec_loss=loss_spectrum(mean,mean_spec_val.to(device),sdev,sdev_spec_val.to(device),image_size)
+            spec_loss=loss_spectrum(mean,mean_spec_val.to(device),sdev,sdev_spec_val.to(device),image_size,gdict['lambda1'])
             
-            if spec_loss_flag: errG=errG_adv+spec_loss
+            if gdict['spec_loss_flag']: errG=errG_adv+spec_loss
             else: errG=errG_adv
 
             if torch.isnan(errG).any():
@@ -128,9 +143,9 @@ def f_train_loop(dataloader,metrics_df,start_epoch,num_epochs,iters,best_chi1,be
 
             ####### Store metrics ########
             # Output training stats
-            if count % checkpoint_size == 0:
+            if count % gdict['checkpoint_size'] == 0:
                 logging.info('[%d/%d][%d/%d]\tLoss_D: %.4f\tLoss_adv: %.4f\tLoss_G: %.4f\tD(x): %.4f\tD(G(z)): %.4f / %.4f'
-                      % (epoch, num_epochs, count, len(dataloader), errD.item(), errG_adv.item(),errG.item(), D_x, D_G_z1, D_G_z2)),
+                      % (epoch, epochs, count, len(dataloader), errD.item(), errG_adv.item(),errG.item(), D_x, D_G_z1, D_G_z2)),
                 logging.info("Spec loss: %s,\t hist loss: %s"%(spec_loss.item(),hist_loss.item())),
                 logging.info("Training time for step %s : %s"%(iters, tme2-tme1))
 
@@ -151,7 +166,7 @@ def f_train_loop(dataloader,metrics_df,start_epoch,num_epochs,iters,best_chi1,be
                 hist_gen=f_compute_hist(fake,bins=bns)
                 hist_chi=loss_hist(hist_gen,hist_val.to(device))
                 mean,sdev=f_torch_image_spectrum(f_invtransform(fake),1,r.to(device),ind.to(device))
-                spec_chi=loss_spectrum(mean,mean_spec_val.to(device),sdev,sdev_spec_val.to(device),image_size)      
+                spec_chi=loss_spectrum(mean,mean_spec_val.to(device),sdev,sdev_spec_val.to(device),image_size,gdict['lambda1'])      
             # Storing chi for next step
             for col,val in zip(['spec_chi','hist_chi'],[spec_chi.item(),hist_chi.item()]):  metrics_df.loc[iters,col]=val            
 
@@ -170,8 +185,12 @@ def f_train_loop(dataloader,metrics_df,start_epoch,num_epochs,iters,best_chi1,be
                     best_chi2=spec_chi.item()
                     logging.info("Saving best spec model at epoch %s, step %s"%(epoch,iters))
 
+                if iters in gdict['save_steps_list']:
+                    f_save_checkpoint(epoch,iters,best_chi1,best_chi2,netG,netD,optimizerG,optimizerD,save_loc=save_dir+'/models/checkpoint_{0}.tar'.format(iters))
+                    logging.info("Saving given-step at epoch %s, step %s."%(epoch,iters))
+
             # Save G's output on fixed_noise
-            if ((iters % checkpoint_size == 0) or ((epoch == num_epochs-1) and (count == len(dataloader)-1))):
+            if ((iters % gdict['checkpoint_size'] == 0) or ((epoch == epochs-1) and (count == len(dataloader)-1))):
                 netG.eval()
                 with torch.no_grad():
                     fake = netG(fixed_noise).detach().cpu()
@@ -185,74 +204,59 @@ def f_train_loop(dataloader,metrics_df,start_epoch,num_epochs,iters,best_chi1,be
         metrics_df.to_pickle(save_dir+'/df_metrics.pkle')
         
     logging.info("best chis: {0}, {1}".format(best_chi1,best_chi2))
-
+    
 #########################
 ### Main code #######
 #########################
 
-if __name__=='__main__':
+if __name__=="__main__":
     torch.backends.cudnn.benchmark=True
-    torch.backends.cudnn.deterministic=True
 #     torch.autograd.set_detect_anomaly(True)
-    
+
     t0=time.time()
-    ###############
-    ### Set up ###
+    #################################
     args=f_parse_args()
-    ngpu,num_epochs=args.ngpu,args.epochs
-    mode,batch_size=args.mode,args.batchsize
-    spec_loss_flag=args.specloss
+
+    ### Set up ###
     config_file=args.config
     config_dict=f_load_config(config_file)
 
-    # Initilize variables
-    workers=config_dict['training']['workers']
-    nc,nz,ngf,ndf=config_dict['training']['nc'],config_dict['training']['nz'],config_dict['training']['ngf'],config_dict['training']['ndf']
-    beta1=config_dict['training']['beta1']
-    kernel_size,stride=config_dict['training']['kernel_size'],config_dict['training']['stride']
-    g_padding,d_padding=config_dict['training']['g_padding'],config_dict['training']['d_padding']
-    flip_prob=config_dict['training']['flip_prob']
-
-    image_size=config_dict['data']['image_size']
-    checkpoint_size=config_dict['data']['checkpoint_size']
-    num_imgs=config_dict['data']['num_imgs']
-    ip_fname=config_dict['data']['ip_fname']
-    op_loc=config_dict['data']['op_loc']
+    # Initilize variables    
+    gdict={}
+    f_init_gdict(gdict,config_dict)
     
-    if spec_loss_flag: logging.info("Using Spectral loss")
-    lr=args.learn_rate
-    bns=50
-#     num_imgs=2000
-    
-    ###### Set up directories ####### ( different for jupter notebook)
-    if args.mode=='fresh':
-        # Create prefix for foldername 
-        now=datetime.now()
-        fldr_name=now.strftime('%Y%m%d_%H%M%S') ## time format
-        # logging.info(fldr_name)
-        save_dir=op_loc+fldr_name+'_'+args.run_suffix
-        if not os.path.exists(save_dir):
-            os.makedirs(save_dir+'/models')
-            os.makedirs(save_dir+'/images')
-            
-        ### Initialize variables
-        iters = 0; start_epoch=0
-        best_chi1,best_chi2=1e10,1e10
+    ## Add args variables to gdict
+    for key in ['ngpu','batchsize','mode','spec_loss_flag','epochs','learn_rate','lambda1','save_steps_list']:
+        gdict[key]=vars(args)[key]
+       
+    ###### Set up directories #######
+    if gdict['mode']=='fresh':
+        # Create prefix for foldername        
+        fldr_name=datetime.now().strftime('%Y%m%d_%H%M%S') ## time format
+        gdict['save_dir']=gdict['op_loc']+fldr_name+'_'+args.run_suffix
+        
+        if not os.path.exists(gdict['save_dir']):
+            os.makedirs(gdict['save_dir']+'/models')
+            os.makedirs(gdict['save_dir']+'/images')
+        ### Initialize variables      
+        best_chi1,best_chi2,iters,start_epoch=1e10,1e10,0,0
         
     elif args.mode=='continue': ## For checkpointed runs
-        save_dir=args.ip_fldr
+        gdict['save_dir']=args.ip_fldr
         
         iters,start_epoch,best_chi1,best_chi2=f_load_checkpoint(save_dir+'/models/checkpoint_last.tar',netG,netD,optimizerG,optimizerD) 
+
         logging.info("Continuing existing run. Loading checkpoint with epoch {0} and step {1}".format(start_epoch,iters))
         start_epoch+=1  ## Start with the next epoch   
-        
         ### Read loss data
         with open (save_dir+'/metrics.pickle','rb') as f:
             metrics_dict=pickle.load(f) 
     
-    
-    ### Write all logging.info statements to stdout and log file 
-    logfile=save_dir+'/log.log'
+    ## Add to gdict
+    for key,val in zip(['best_chi1','best_chi2','iters','start_epoch'],[best_chi1,best_chi2,iters,start_epoch]): gdict[key]=val
+
+    ### Write all logging.info statements to stdout and log file (different for jpt notebooks)
+    logfile=gdict['save_dir']+'/log.log'
     logging.basicConfig(level=logging.DEBUG, filename=logfile, filemode="a+", format="%(asctime)-15s %(levelname)-8s %(message)s")
     
     Lg = logging.getLogger()
@@ -265,6 +269,13 @@ if __name__=='__main__':
     logging.info('Args: {0}'.format(args))
     logging.info(config_dict)
     logging.info('Start: %s'%(datetime.now().strftime('%Y-%m-%d  %H:%M:%S')))
+    if gdict['spec_loss_flag']: logging.info("Using Spectral loss")
+       
+    ## Special declarations
+    gdict['bns']=50
+    gdict['device']=torch.device("cuda" if (torch.cuda.is_available() and gdict['ngpu'] > 0) else "cpu")
+    gdict['ngpu']=torch.cuda.device_count()
+    logging.info(gdict)
     
     ### Initialize random seed
     if args.seed=='random': manualSeed = np.random.randint(1, 10000)
@@ -273,78 +284,81 @@ if __name__=='__main__':
 #     random.seed(manualSeed)
     np.random.seed(manualSeed)
     torch.manual_seed(manualSeed)
-    device = torch.device("cuda" if (torch.cuda.is_available() and ngpu > 0) else "cpu")
-    logging.info('Device:{0}'.format(device))
- 
+    logging.info('Device:{0}'.format(gdict['device']))
+
+    if args.deterministic: 
+        logging.info("Running with deterministic sequence. Performancd will be slower")
+        torch.backends.cudnn.deterministic=True
+    
     #################################
     ####### Read data and precompute ######
-    # ip_fname='/global/cfs/cdirs/m3363/vayyar/cosmogan_data/raw_data/128_square/dataset_2_smoothing_200k/norm_1_train_val.npy'
-    img=np.load(ip_fname)[:num_imgs].transpose(0,1,2,3)
+    img=np.load(gdict['ip_fname'],mmap_mode='r')[:gdict['num_imgs']].transpose(0,1,2,3)
     t_img=torch.from_numpy(img)
     logging.info("%s, %s"%(img.shape,t_img.shape))
 
     dataset=TensorDataset(t_img)
-    dataloader=DataLoader(dataset,batch_size=batch_size,shuffle=True,num_workers=1,drop_last=True)
+    dataloader=DataLoader(dataset,batch_size=gdict['batchsize'],shuffle=True,num_workers=1,drop_last=True)
 
     # Precompute metrics with validation data for computing losses
     with torch.no_grad():
-        val_img=np.load(ip_fname)[-3000:].transpose(0,1,2,3)
-        t_val_img=torch.from_numpy(val_img)
+        val_img=np.load(gdict['ip_fname'])[-3000:].transpose(0,1,2,3)
+        t_val_img=torch.from_numpy(val_img).to(gdict['device'])
 
         # Precompute radial coordinates
         r,ind=f_get_rad(img)
+        r=r.to(gdict['device']); ind=ind.to(gdict['device'])
         # Stored mean and std of spectrum for full input data once
         mean_spec_val,sdev_spec_val=f_torch_image_spectrum(f_invtransform(t_val_img),1,r,ind)
-        hist_val=f_compute_hist(t_val_img,bins=bns)
+        hist_val=f_compute_hist(t_val_img,bins=gdict['bns'])
         del val_img; del t_val_img; del img; del t_img
 
     #################################
     ###### Build Networks ###
+    # Define Models
     logging.info("Building GAN networks")
     # Create Generator
-    netG = Generator(ngpu,nz,nc,ngf,kernel_size,stride,g_padding).to(device)
+    netG = Generator(gdict).to(gdict['device'])
     netG.apply(weights_init)
-    logging.info(netG)
+#     logging.info(netG)
     summary(netG,(1,1,64))
     # Create Discriminator
-    netD = Discriminator(ngpu, nz,nc,ndf,kernel_size,stride,g_padding).to(device)
+    netD = Discriminator(gdict).to(gdict['device'])
     netD.apply(weights_init)
-    logging.info(netD)
+#     logging.info(netD)
     summary(netD,(1,128,128))
-    # Handle multi-gpu if desired
-    ngpu=torch.cuda.device_count()
     
-    logging.info("Number of GPUs used %s"%(ngpu))
-    if (device.type == 'cuda') and (ngpu > 1):
-        netG = nn.DataParallel(netG, list(range(ngpu)))
-        netD = nn.DataParallel(netD, list(range(ngpu)))
+    logging.info("Number of GPUs used %s"%(gdict['ngpu']))
+    if (gdict['device'].type == 'cuda') and (gdict['ngpu'] > 1):
+        netG = nn.DataParallel(netG, list(range(gdict['ngpu'])))
+        netD = nn.DataParallel(netD, list(range(gdict['ngpu'])))
 
     # Initialize BCELoss function
     # criterion = nn.BCELoss()
     criterion = nn.BCEWithLogitsLoss()
-    fixed_noise = torch.randn(batch_size, 1, 1, nz, device=device) #Latent vectors to view G progress
     # Setup Adam optimizers for both G and D
-    optimizerD = optim.Adam(netD.parameters(), lr=lr, betas=(beta1, 0.999),eps=1e-7)
-    optimizerG = optim.Adam(netG.parameters(), lr=lr, betas=(beta1, 0.999),eps=1e-7)
+    optimizerD = optim.Adam(netD.parameters(), lr=gdict['learn_rate'], betas=(gdict['beta1'], 0.999),eps=1e-7)
+    optimizerG = optim.Adam(netG.parameters(), lr=gdict['learn_rate'], betas=(gdict['beta1'], 0.999),eps=1e-7)
+    
+    fixed_noise = torch.randn(gdict['batchsize'], 1, 1, gdict['nz'], device=gdict['device']) #Latent vectors to view G progress    
     
     #################################       
     ### Set up metrics dataframe
     cols=['step','epoch','Dreal','Dfake','Dfull','G_adv','G_full','spec_loss','hist_loss','spec_chi','hist_chi','D(x)','D_G_z1','D_G_z2','time']
-    # size=int(len(dataloader) * num_epochs)+1
+    # size=int(len(dataloader) * epochs)+1
     metrics_df=pd.DataFrame(columns=cols)
-
+    
     #################################
     ########## Train loop and save metrics and images ######
     logging.info("Starting Training Loop...")
-    f_train_loop(dataloader,metrics_df,start_epoch,num_epochs,iters,best_chi1,best_chi2,save_dir)
-
+    f_train_loop(dataloader,metrics_df,gdict)
+    
     ## Generate images for best saved models ######
-    model_fname=save_dir+'/models/checkpoint_best_spec.tar'
-    f_gen_images(netG,optimizerG,nz,device,model_fname,'spec',save_dir,2000)
+    model_fname=gdict['save_dir']+'/models/checkpoint_best_spec.tar'
+    f_gen_images(gdict,netG,optimizerG,model_fname,'spec',200)
 
-    model_fname=save_dir+'/models/checkpoint_best_hist.tar'
-    f_gen_images(netG,optimizerG,nz,device,model_fname,'hist',save_dir,2000)  
-
+    model_fname=gdict['save_dir']+'/models/checkpoint_best_hist.tar'
+    f_gen_images(gdict,netG,optimizerG,model_fname,'hist',200)
+    
     tf=time.time()
     logging.info("Total time %s"%(tf-t0))
     logging.info('End: %s'%(datetime.now().strftime('%Y-%m-%d  %H:%M:%S')))

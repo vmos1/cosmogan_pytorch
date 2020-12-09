@@ -3,20 +3,12 @@ import torch.nn as nn
 import torch.nn.parallel
 import yaml
 import numpy as np
+import collections
 
 def f_load_config(config_file):
     with open(config_file) as f:
         config = yaml.load(f, Loader=yaml.SafeLoader)
     return config
-
-class Tee(object):
-    ''' class for writing log to file and stdout '''
-    def __init__(self, *files):
-        self.files = files
-    def write(self, obj):
-        for f in self.files:
-            f.write(obj)
-
 
 ### Transformation functions for image pixel values
 def f_transform(x):
@@ -47,12 +39,31 @@ class View(nn.Module):
         return x.view(*self.shape)
 
 
+# custom weights initialization called on netG and netD
+def weights_init(m):
+    classname = m.__class__.__name__
+    if classname.find('Conv') != -1:
+        nn.init.normal_(m.weight.data, 0.0, 0.02)
+    elif classname.find('BatchNorm') != -1:
+        nn.init.normal_(m.weight.data, 1.0, 0.02)
+        nn.init.constant_(m.bias.data, 0)
+
+# Generator Code
+class View(nn.Module):
+    def __init__(self, shape):
+        super(View, self).__init__()
+        self.shape = shape
+
+    def forward(self, x):
+        return x.view(*self.shape)
+
 class Generator(nn.Module):
-    def __init__(self, ngpu,nz,nc,ngf,kernel_size,stride,g_padding):
+    def __init__(self, gdict):
         super(Generator, self).__init__()
-        self.ngpu = ngpu
-#         self.nz,self.nc,self.ngf=nz,nc,ngf
-#         self.kernel_size,self.g_padding=kernel_size,g_padding
+        
+        ## Define new variables from dict
+        keys=['ngpu','nz','nc','ngf','kernel_size','stride','g_padding']
+        ngpu, nz,nc,ngf,kernel_size,stride,g_padding=list(collections.OrderedDict({key:gdict[key] for key in keys}).values())
 
         self.main = nn.Sequential(
             # nn.ConvTranspose2d(in_channels, out_channels, kernel_size,stride,padding,output_padding,groups,bias, Dilation,padding_mode)
@@ -74,17 +85,21 @@ class Generator(nn.Module):
             # state size. (ngf) x 32 x 32
             nn.ConvTranspose2d( ngf, nc, kernel_size, stride,g_padding, 1, bias=False),
             nn.Tanh()
-            # state size. (nc) x 64 x 64
         )
     
-    def forward(self, input):
-        return self.main(input)
+    def forward(self, ip):
+        return self.main(ip)
 
 class Discriminator(nn.Module):
-    def __init__(self, ngpu, nz,nc,ndf,kernel_size,stride,d_padding):
+    def __init__(self, gdict):
         super(Discriminator, self).__init__()
-        self.ngpu = ngpu
+        
+        ## Define new variables from dict
+        keys=['ngpu','nz','nc','ndf','kernel_size','stride','d_padding']
+        ngpu, nz,nc,ndf,kernel_size,stride,d_padding=list(collections.OrderedDict({key:gdict[key] for key in keys}).values())        
+
         self.main = nn.Sequential(
+            # input is (nc) x 64 x 64
             # nn.Conv2d(in_channels, out_channels, kernel_size,stride,padding,output_padding,groups,bias, Dilation,padding_mode)
             nn.Conv2d(nc, ndf,kernel_size, stride, d_padding,  bias=True),
             nn.BatchNorm2d(ndf,eps=1e-05, momentum=0.9, affine=True),
@@ -101,19 +116,25 @@ class Discriminator(nn.Module):
             nn.Conv2d(ndf * 4, ndf * 8, kernel_size, stride, d_padding, bias=True),
             nn.BatchNorm2d(ndf * 8,eps=1e-05, momentum=0.9, affine=True),
             nn.LeakyReLU(0.2, inplace=True),
+            # state size. (ndf*8) x 4 x 4
             nn.Flatten(),
             nn.Linear(nc*ndf*8*8*8, 1)
+#             nn.Sigmoid()
         )
 
-    def forward(self, input):
-        return self.main(input)
+    def forward(self, ip):
+        return self.main(ip)
 
-def f_gen_images(netG,optimizerG,nz,device,ip_fname,strg,save_dir,op_size=500):
+
+def f_gen_images(gdict,netG,optimizerG,ip_fname,strg,op_size=500):
     '''Generate images for best saved models
-     Arguments: ip_fname: name of input file
+     Arguments: gdict, netG, optimizerG, 
+                 ip_fname: name of input file
                 strg: ['hist' or 'spec']
                 op_size: Number of images to generate
     '''
+
+    nz,device,save_dir=gdict['nz'],gdict['device'],gdict['save_dir']
 
     try:
         checkpoint=torch.load(ip_fname)
