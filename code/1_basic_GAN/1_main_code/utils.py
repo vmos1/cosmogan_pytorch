@@ -38,7 +38,6 @@ class View(nn.Module):
     def forward(self, x):
         return x.view(*self.shape)
 
-
 # custom weights initialization called on netG and netD
 def weights_init(m):
     classname = m.__class__.__name__
@@ -125,27 +124,30 @@ class Discriminator(nn.Module):
     def forward(self, ip):
         return self.main(ip)
 
-
-def f_gen_images(gdict,netG,optimizerG,ip_fname,strg,op_size=500):
+def f_gen_images(gdict,netG,optimizerG,ip_fname,op_loc,op_strg='inf_img_',op_size=500):
     '''Generate images for best saved models
      Arguments: gdict, netG, optimizerG, 
                  ip_fname: name of input file
-                strg: ['hist' or 'spec']
+                op_strg: [string name for output file]
                 op_size: Number of images to generate
     '''
 
-    nz,device,save_dir=gdict['nz'],gdict['device'],gdict['save_dir']
+    nz,device=gdict['nz'],gdict['device']
 
-    try:
-        checkpoint=torch.load(ip_fname)
+    try:# handling cpu vs gpu
+        if torch.cuda.is_available(): checkpoint=torch.load(ip_fname)
+        else: checkpoint=torch.load(ip_fname,map_location=torch.device('cpu'))
     except Exception as e:
         print(e)
         print("skipping generation of images for ",ip_fname)
         return
     
-    netG.load_state_dict(checkpoint['G_state'])
-#    netD.load_state_dict(checkpoint['D_state'])
-
+    ## Load checkpoint
+    if gdict['multi-gpu']:
+        netG.module.load_state_dict(checkpoint['G_state'])
+    else:
+        netG.load_state_dict(checkpoint['G_state'])
+    
     ## Load other stuff
     iters=checkpoint['iters']
     epoch=checkpoint['epoch']
@@ -158,22 +160,27 @@ def f_gen_images(gdict,netG,optimizerG,ip_fname,strg,op_size=500):
     gen = netG(noise)
     gen_images=gen.detach().cpu().numpy()[:,0,:,:]
     print(gen_images.shape)
+    
+    op_fname='%s_epoch-%s_step-%s.npy'%(op_strg,epoch,iters)
 
-    op_fname='best-%s_gen_img_epoch-%s_step-%s.npy'%(strg,epoch,iters)
-
-    np.save(save_dir+'/images/'+op_fname,gen_images)
+    np.save(op_loc+op_fname,gen_images)
 
     print("Image saved in ",op_fname)
     
-    
-def f_save_checkpoint(epoch,iters,best_chi1,best_chi2,netG,netD,optimizerG,optimizerD,save_loc):
+def f_save_checkpoint(gdict,epoch,iters,best_chi1,best_chi2,netG,netD,optimizerG,optimizerD,save_loc):
     ''' Checkpoint model '''
-    torch.save({'epoch':epoch,'iters':iters,'best_chi1':best_chi1,'best_chi2':best_chi2,
-                'G_state':netG.state_dict(),'D_state':netD.state_dict(),'optimizerG_state_dict':optimizerG.state_dict(),
+    
+    if gdict['multi-gpu']: ## Dataparallel
+        torch.save({'epoch':epoch,'iters':iters,'best_chi1':best_chi1,'best_chi2':best_chi2,
+                'G_state':netG.module.state_dict(),'D_state':netD.module.state_dict(),'optimizerG_state_dict':optimizerG.state_dict(),
                 'optimizerD_state_dict':optimizerD.state_dict()}, save_loc) 
-    
-    
-def f_load_checkpoint(ip_fname,netG,netD,optimizerG,optimizerD):
+    else :
+        torch.save({'epoch':epoch,'iters':iters,'best_chi1':best_chi1,'best_chi2':best_chi2,
+                'G_state':netG.state_dict(),'D_state':netD.state_dict(),'optimizerG_state_dict':optimizerG.state_dict(),
+                'optimizerD_state_dict':optimizerD.state_dict()}, save_loc)
+        
+
+def f_load_checkpoint(ip_fname,netG,netD,optimizerG,optimizerD,gdict):
     ''' Load saved checkpoint
     Also loads step, epoch, best_chi1, best_chi2'''
     
@@ -185,9 +192,13 @@ def f_load_checkpoint(ip_fname,netG,netD,optimizerG,optimizerD):
         raise SystemError
     
     ## Load checkpoint
-    netG.load_state_dict(checkpoint['G_state'])
-    netD.load_state_dict(checkpoint['D_state'])
-
+    if gdict['multi-gpu']:
+        netG.module.load_state_dict(checkpoint['G_state'])
+        netD.module.load_state_dict(checkpoint['D_state'])
+    else:
+        netG.load_state_dict(checkpoint['G_state'])
+        netD.load_state_dict(checkpoint['D_state'])
+    
     optimizerD.load_state_dict(checkpoint['optimizerD_state_dict'])
     optimizerG.load_state_dict(checkpoint['optimizerG_state_dict'])
     

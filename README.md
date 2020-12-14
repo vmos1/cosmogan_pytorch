@@ -9,8 +9,8 @@ The Table below describes the content of various folders in this repository
 
 | Description | Location |
 | --- | ---|
-| Main code | cosmogan/1_main_code/ |
-| Analysis code | cosmogan/2_analysis |
-| CGAN - code | cosmogan/4_cond_GAN/ |
-| CGAN - analysis | cosmogan/4_cond_GAN/cgan_analysis/ |
+| Main code | code/1_basic_GAN/1_main_code/ |
+| Analysis code | code/1_basic_GAN/2_analysis |
+| CGAN - code | code/3_cond_GAN/1_main_code |
+| CGAN - analysis | code/3_cond_GAN/2_cgan_analysis/ |
 

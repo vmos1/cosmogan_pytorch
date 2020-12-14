@@ -254,7 +254,7 @@ def f_compute_hist(data,bins):
     return hist_data
 
 ### Losses 
-def loss_spectrum(spec_mean,spec_mean_ref,spec_std,spec_std_ref,image_size):
+def loss_spectrum(spec_mean,spec_mean_ref,spec_std,spec_std_ref,image_size,lambda1):
     ''' Loss function for the spectrum : mean + variance 
     Log(sum( batch value - expect value) ^ 2 )) '''
     
@@ -264,7 +264,8 @@ def loss_spectrum(spec_mean,spec_mean_ref,spec_std,spec_std_ref,image_size):
     spec_mean=torch.log(torch.mean(torch.pow(spec_mean[:,:idx]-spec_mean_ref[:,:idx],2)))
     spec_sdev=torch.log(torch.mean(torch.pow(spec_std[:,:idx]-spec_std_ref[:,:idx],2)))
     
-    lambda1=1.0;lambda2=1.0;
+    lambda1=lambda1;
+    lambda2=lambda1;
     ans=lambda1*spec_mean+lambda2*spec_sdev
     
     if torch.isnan(spec_sdev).any():    print("spec loss with nan",ans)
@@ -304,7 +305,7 @@ def f_get_spec_cond(img_tensor,categories,gdict,spec_mean_tnsr,spec_sdev_tnsr,r,
         if idxs.size(0)>1: 
             img=img_tensor[idxs]
             mean,sdev=f_torch_image_spectrum(f_invtransform(img),1,r,ind)
-            loss_spec_tensor[i]=loss_spectrum(mean,spec_mean_tnsr[i],sdev,spec_sdev_tnsr[i],gdict['image_size'])
+            loss_spec_tensor[i]=loss_spectrum(mean,spec_mean_tnsr[i],sdev,spec_sdev_tnsr[i],gdict['image_size'],gdict['lambda1'])
     spec_loss=loss_spec_tensor.sum()
     return spec_loss
 
