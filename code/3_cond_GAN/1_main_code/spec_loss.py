@@ -279,17 +279,48 @@ def loss_hist(hist_sample,hist_ref):
     return lambda1*torch.log(torch.mean(torch.pow(hist_sample-hist_ref,2)))
 
 
+# def f_get_hist_cond(img_tensor,categories,bins,gdict,hist_val_tnsr):
+#     ''' Module to compute pixel intensity histogram loss for conditional GAN '''
+#     num_classes=gdict['num_classes'];device=gdict['device']
+    
+#     loss_hist_tensor=torch.zeros(num_classes,device=device)
+#     for i in np.arange(num_classes):    
+#         idxs=torch.where(categories==i)[0] ## Get indices for that category
+#     #     print(i,idxs.size(0))
+#         if idxs.size(0)>1: 
+#             img=img_tensor[idxs]
+#             loss_hist_tensor[i]=loss_hist(f_compute_hist(img,bins),hist_val_tnsr[i])
+#     hist_loss=loss_hist_tensor.sum()
+    
+#     return hist_loss
+
+# def f_get_spec_cond(img_tensor,categories,gdict,spec_mean_tnsr,spec_sdev_tnsr,r,ind):
+#     ''' Module to compute spectral loss for conditional GAN '''
+#     num_classes=gdict['num_classes'];device=gdict['device']
+    
+#     loss_spec_tensor=torch.zeros(num_classes,device=device)
+#     for i in np.arange(num_classes):    
+#         idxs=torch.where(categories==i)[0] ## Get indices for that category
+#     #     print(i,idxs.size(0))
+#         if idxs.size(0)>1: 
+#             img=img_tensor[idxs]
+#             mean,sdev=f_torch_image_spectrum(f_invtransform(img),1,r,ind)
+#             loss_spec_tensor[i]=loss_spectrum(mean,spec_mean_tnsr[i],sdev,spec_sdev_tnsr[i],gdict['image_size'],gdict['lambda1'])
+#     spec_loss=loss_spec_tensor.sum()
+#     return spec_loss
+
+### Edits for float labels
 def f_get_hist_cond(img_tensor,categories,bins,gdict,hist_val_tnsr):
     ''' Module to compute pixel intensity histogram loss for conditional GAN '''
     num_classes=gdict['num_classes'];device=gdict['device']
     
     loss_hist_tensor=torch.zeros(num_classes,device=device)
-    for i in np.arange(num_classes):    
+    for count,i in enumerate(gdict['sigma_list']):    
         idxs=torch.where(categories==i)[0] ## Get indices for that category
-    #     print(i,idxs.size(0))
         if idxs.size(0)>1: 
+            num_frac=idxs.size(0)/img_tensor.shape[0] ## Fraction of points in the category
             img=img_tensor[idxs]
-            loss_hist_tensor[i]=loss_hist(f_compute_hist(img,bins),hist_val_tnsr[i])
+            loss_hist_tensor[count]=loss_hist(f_compute_hist(img,bins),hist_val_tnsr[count])*num_frac
     hist_loss=loss_hist_tensor.sum()
     
     return hist_loss
@@ -299,15 +330,13 @@ def f_get_spec_cond(img_tensor,categories,gdict,spec_mean_tnsr,spec_sdev_tnsr,r,
     num_classes=gdict['num_classes'];device=gdict['device']
     
     loss_spec_tensor=torch.zeros(num_classes,device=device)
-    for i in np.arange(num_classes):    
+    for count,i in enumerate(gdict['sigma_list']):    
         idxs=torch.where(categories==i)[0] ## Get indices for that category
-    #     print(i,idxs.size(0))
         if idxs.size(0)>1: 
+            num_frac=idxs.size(0)/img_tensor.shape[0] ## Fraction of points in the category
             img=img_tensor[idxs]
             mean,sdev=f_torch_image_spectrum(f_invtransform(img),1,r,ind)
-            loss_spec_tensor[i]=loss_spectrum(mean,spec_mean_tnsr[i],sdev,spec_sdev_tnsr[i],gdict['image_size'],gdict['lambda1'])
+            loss_spec_tensor[count]=loss_spectrum(mean,spec_mean_tnsr[count],sdev,spec_sdev_tnsr[count],gdict['image_size'],gdict['lambda1'])*num_frac
     spec_loss=loss_spec_tensor.sum()
     return spec_loss
-
-
 
