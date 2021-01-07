@@ -35,10 +35,16 @@ class View(nn.Module):
     def forward(self, x):
         return x.view(*self.shape)
 
-def f_get_sigma(ip_categories,gdict):
-    sigma_list=gdict['sigma_list']
-    return torch.tensor([sigma_list[i] for i in ip_categories.long()],device=gdict['device']).unsqueeze(-1)
 
+def f_get_sigma(ip_categories,gdict):
+    ''' Return categories of sigma values if required'''
+    
+    if gdict['model_float']==True:
+        sigma_list=gdict['sigma_list']
+        categories=torch.tensor([sigma_list[i] for i in ip_categories.long()],device=gdict['device']).unsqueeze(-1)
+        return categories
+    else :
+        return ip_categories.float()
 
 def f_gen_images(gdict,netG,optimizerG,label,ip_fname,op_loc,op_strg='inf_img_',op_size=500):
     '''Generate images for best saved models
@@ -73,7 +79,7 @@ def f_gen_images(gdict,netG,optimizerG,label,ip_fname,op_loc,op_strg='inf_img_',
     # Generate batch of latent vectors
     noise = torch.randn(op_size, 1, 1, nz, device=device)
     tnsr_categories=(torch.ones(op_size,device=device)*label).view(op_size,1)
-    if gdict['model']>3: tnsr_categories=f_get_sigma(tnsr_categories,gdict)
+    tnsr_categories=f_get_sigma(tnsr_categories,gdict)
 
     # Generate fake image batch with G
     netG.eval() ## This is required before running inference
