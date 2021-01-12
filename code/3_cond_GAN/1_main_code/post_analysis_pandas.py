@@ -18,8 +18,8 @@ import time
 
 from pandarallel import pandarallel
 
-sys.path.append('/global/u1/v/vpa/project/jpt_notebooks/Cosmology/Cosmo_GAN/repositories/lbann_cosmogan/3_analysis')
-from modules_image_analysis import *
+sys.path.append('/global/u1/v/vpa/project/jpt_notebooks/Cosmology/Cosmo_GAN/repositories/cosmogan_pytorch/code/modules_image_analysis/')
+from modules_img_analysis import *
 
 def parse_args():
     """Parse command line arguments."""
@@ -30,7 +30,8 @@ def parse_args():
     add_arg('--folder','-f', type=str,help='The full path of the folder containing the data to analyze.')
     add_arg('--cores','-c', type=int, default=64,help='Number of cores to use for parallelization')
     add_arg('--bins_type','-bin', type=str, default='uneven',help='Number of cores to use for parallelization')
-    
+    add_arg('--sig_lst','-sl', dest='sigma_list', nargs='*', type = float, default=[], help='List of sigma values')
+ 
     return parser.parse_args()
 
 ### Transformation functions for image pixel values
@@ -220,7 +221,8 @@ if __name__=="__main__":
     transform=False ## Images are in transformed space (-1,1), convert bins to the same space
     if not transform: bins=f_transform(bins)   ### scale to (-1,1)     
     
-    sigma_list=[0.5,0.65,0.8,1.1];label_list=[0,1,2,3];
+    sigma_list=args.sigma_list;label_list=sigma_list;
+    print(label_list)
     for count,(sigma,label) in enumerate(zip(sigma_list,label_list)):
         
         ### Extract validation data

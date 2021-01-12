@@ -21,12 +21,13 @@ from pandarallel import pandarallel
 sys.path.append('/global/u1/v/vpa/project/jpt_notebooks/Cosmology/Cosmo_GAN/repositories/cosmogan_pytorch/code/modules_image_analysis/')
 from modules_img_analysis import *
 
+
 def parse_args():
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(description="Analyze output data from LBANN run")
     add_arg = parser.add_argument
     
-    add_arg('--val_data','-v', type=str, default='/global/cfs/cdirs/m3363/vayyar/cosmogan_data/raw_data/128_square/dataset_2_smoothing_200k/norm_1_train_val.npy',help='The .npy file with input data to compare with')
+    add_arg('--val_data','-v', type=str, default='/global/cfs/cdirs/m3363/vayyar/cosmogan_data/raw_data/3d_data/dataset1_smoothing_const_params_100k/val.npy',help='The .npy file with input data to compare with')
     add_arg('--folder','-f', type=str,help='The full path of the folder containing the data to analyze.')
     add_arg('--cores','-c', type=int, default=64,help='Number of cores to use for parallelization')
     add_arg('--bins_type','-bin', type=str, default='uneven',help='Number of cores to use for parallelization')
@@ -98,7 +99,7 @@ def f_compute_hist_spect(sample,bins):
     ### Compute pixel histogram for row
     gen_hist,gen_err,hist_bins=f_batch_histogram(sample,bins=bins,norm=True,hist_range=None)
     ### Compute spectrum for row
-    spec,spec_sdev=f_compute_spectrum(sample,plot=False)
+    spec,spec_sdev=f_plot_spectrum_3d(sample,plot=False)
 
     dict1={'hist_val':gen_hist,'hist_err':gen_err,'hist_bin_centers':hist_bins,'spec_val':spec,'spec_sdev':spec_sdev }
     return dict1
@@ -213,7 +214,7 @@ if __name__=="__main__":
     ### Extract validation data
     fname=args.val_data
     print("Using validation data from ",fname)
-    s_val=np.load(fname,mmap_mode='r')[:8000][:,0,:,:]
+    s_val=np.load(fname,mmap_mode='r')[:2000][:,0,:,:]
     print(s_val.shape)
 
     ### Get dataframe with file names, sorted by epoch and step
