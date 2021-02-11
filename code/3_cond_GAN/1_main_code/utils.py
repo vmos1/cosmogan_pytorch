@@ -72,10 +72,10 @@ def f_gen_images(gdict,netG,optimizerG,sigma,ip_fname,op_loc,op_strg='inf_img_',
     # Generate fake image batch with G
     netG.eval() ## This is required before running inference
     gen = netG(noise,tnsr_cosm_params)
-    gen_images=gen.detach().cpu().numpy()[:,0,:,:]
+    gen_images=gen.detach().cpu().numpy()[:,:,:,:]
     print(gen_images.shape)
 
-    op_fname='%s_epoch-%s_step-%s_sigma-%s.npy'%(op_strg,epoch,iters,sigma)
+    op_fname='%s_label-%s_epoch-%s_step-%s.npy'%(op_strg,sigma,epoch,iters)
     np.save(op_loc+op_fname,gen_images)
     
     print("Image saved in ",op_fname)

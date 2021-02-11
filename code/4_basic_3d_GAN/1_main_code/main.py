@@ -104,13 +104,13 @@ def f_train_loop(dataloader,metrics_df,gdict):
 
             # Forward pass real batch through D
             output = netD(real_cpu).view(-1)
-            errD_real = criterion(output, real_label)
+            errD_real = criterion(output, real_label.float())
             errD_real.backward()
             D_x = output.mean().item()
 
             # Forward pass real batch through D
             output = netD(fake.detach()).view(-1)
-            errD_fake = criterion(output, fake_label)
+            errD_fake = criterion(output, fake_label.float())
             errD_fake.backward()
             D_G_z1 = output.mean().item()
             errD = errD_real + errD_fake
@@ -119,7 +119,7 @@ def f_train_loop(dataloader,metrics_df,gdict):
             ###Update G network: maximize log(D(G(z)))
             netG.zero_grad()
             output = netD(fake).view(-1)
-            errG_adv = criterion(output, g_label)
+            errG_adv = criterion(output, g_label.float())
             # Histogram pixel intensity loss
             hist_gen=f_compute_hist(fake,bins=bns)
             hist_loss=loss_hist(hist_gen,hist_val.to(device))
@@ -195,7 +195,7 @@ def f_train_loop(dataloader,metrics_df,gdict):
                 netG.eval()
                 with torch.no_grad():
                     fake = netG(fixed_noise).detach().cpu()
-                    img_arr=np.array(fake[:,0,:,:])
+                    img_arr=np.array(fake[:,:,:,:])
                     fname='gen_img_epoch-%s_step-%s'%(epoch,iters)
                     np.save(save_dir+'/images/'+fname,img_arr)
         
@@ -288,7 +288,7 @@ if __name__=="__main__":
     
     #################################
     ####### Read data and precompute ######
-    img=np.load(gdict['ip_fname'],mmap_mode='r')[:gdict['num_imgs']].transpose(0,1,2,3,4).astype(np.float32)
+    img=np.load(gdict['ip_fname'],mmap_mode='r')[:gdict['num_imgs']].transpose(0,1,2,3,4).astype(np.float32).copy()
 #     img=f_transform(img)
     t_img=torch.from_numpy(img)
     logging.info("%s, %s"%(img.shape,t_img.shape))
@@ -298,7 +298,7 @@ if __name__=="__main__":
 
     # Precompute metrics with validation data for computing losses
     with torch.no_grad():
-        val_img=np.load(gdict['ip_fname'],mmap_mode='r')[-1000:].transpose(0,1,2,3,4).astype(np.float32)
+        val_img=np.load(gdict['ip_fname'],mmap_mode='r')[-1000:].transpose(0,1,2,3,4).astype(np.float32).copy()
 #         val_img=f_transform(val_img)
         t_val_img=torch.from_numpy(val_img).to(gdict['device'])
 

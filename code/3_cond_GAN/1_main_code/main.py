@@ -103,13 +103,13 @@ def f_train_loop(dataloader,metrics_df,gdict):
             
             # Forward pass real batch through D
             output = netD(real_cpu,real_cosm_params).view(-1)
-            errD_real = criterion(output, real_label)
+            errD_real = criterion(output, real_label.float())
             errD_real.backward()
             D_x = output.mean().item()
             
             # Forward pass fake batch through D
             output = netD(fake.detach(),fake_cosm_params).view(-1)
-            errD_fake = criterion(output, fake_label)
+            errD_fake = criterion(output, fake_label.float())
             errD_fake.backward()
             D_G_z1 = output.mean().item()
             errD = errD_real + errD_fake
@@ -118,7 +118,7 @@ def f_train_loop(dataloader,metrics_df,gdict):
             ###Update G network: maximize log(D(G(z)))
             netG.zero_grad()
             output = netD(fake,fake_cosm_params).view(-1)
-            errG_adv = criterion(output, g_label)
+            errG_adv = criterion(output, g_label.float())
             # Histogram pixel intensity loss
             hist_loss=f_get_hist_cond(fake,fake_cosm_params,bns,gdict,hist_val_tnsr)
             
@@ -180,8 +180,9 @@ def f_train_loop(dataloader,metrics_df,gdict):
                     f_save_checkpoint(gdict,epoch,iters,best_chi1,best_chi2,netG,netD,optimizerG,optimizerD,save_loc=save_dir+'/models/checkpoint_best_spec.tar')
                     best_chi2=spec_chi.item()
                     logging.info("Saving best spec model at epoch %s, step %s"%(epoch,iters))
-                    
-                if iters in gdict['save_steps_list']:
+                
+                if ((epoch>7) and (epoch<16) and ((iters % gdict['checkpoint_size'] == 0)) and (hist_chi<best_chi1*0.5) and (spec_chi<best_chi2*1.1)):
+#                 if iters in gdict['save_steps_list']:
                     f_save_checkpoint(gdict,epoch,iters,best_chi1,best_chi2,netG,netD,optimizerG,optimizerD,save_loc=save_dir+'/models/checkpoint_{0}.tar'.format(iters))
                     logging.info("Saving given step at epoch %s, step %s."%(epoch,iters))
                     
@@ -192,7 +193,7 @@ def f_train_loop(dataloader,metrics_df,gdict):
                     for c_pars in gdict['sigma_list']:
                         tnsr_cosm_params=(torch.ones(batch_size,device=device)*c_pars).view(batch_size,1)
                         fake = netG(fixed_noise,tnsr_cosm_params).detach().cpu()
-                        img_arr=np.array(fake[:,0,:,:])
+                        img_arr=np.array(fake[:,:,:,:])
                         fname='gen_img_label-%s_epoch-%s_step-%s'%(c_pars,epoch,iters)
                         np.save(save_dir+'/images/'+fname,img_arr)
         
@@ -282,13 +283,14 @@ if __name__=="__main__":
     random.seed(manualSeed)
     np.random.seed(manualSeed)
     torch.manual_seed(manualSeed)
+    torch.cuda.manual_seed(manualSeed)
     torch.cuda.manual_seed_all(manualSeed)
     logging.info('Device:{0}'.format(gdict['device']))
 
     if args.deterministic: 
         logging.info("Running with deterministic sequence. Performance will be slower")
         torch.backends.cudnn.deterministic=True
-#         torch.backends.cudnn.enabled = False
+        torch.backends.cudnn.enabled = False
         torch.backends.cudnn.benchmark = False
     
     #################################   
@@ -319,7 +321,7 @@ if __name__=="__main__":
         
         for count,sigma in enumerate(gdict['sigma_list']):
             ip_fname=gdict['ip_fname']+'/norm_1_sig_%s_train_val.npy'%(sigma)
-            val_img=np.load(ip_fname,mmap_mode='r')[-3000:].transpose(0,1,2,3)
+            val_img=np.load(ip_fname,mmap_mode='r')[-3000:].transpose(0,1,2,3).copy()
             t_val_img=torch.from_numpy(val_img).to(gdict['device'])
 
             # Precompute radial coordinates
@@ -333,9 +335,9 @@ if __name__=="__main__":
             spec_mean_list.append(mean_spec_val)
             spec_sdev_list.append(sdev_spec_val)
             hist_val_list.append(hist_val)
-        spec_mean_tnsr=torch.stack(spec_mean_list)
-        spec_sdev_tnsr=torch.stack(spec_sdev_list)
-        hist_val_tnsr=torch.stack(hist_val_list)
+        spec_mean_tnsr=torch.stack(spec_mean_list).to(gdict['device'])
+        spec_sdev_tnsr=torch.stack(spec_sdev_list).to(gdict['device'])
+        hist_val_tnsr=torch.stack(hist_val_list).to(gdict['device'])
         
         del val_img; del t_val_img; del img; del t_img; del spec_mean_list; del spec_sdev_list; del hist_val_list
     
@@ -399,10 +401,10 @@ if __name__=="__main__":
     for cl in gdict['sigma_list']:
         op_loc=gdict['save_dir']+'/images/'
         ip_fname=gdict['save_dir']+'/models/checkpoint_best_spec.tar'
-        f_gen_images(gdict,netG,optimizerG,cl,ip_fname,op_loc,op_strg='best_spec',op_size=200)
+        f_gen_images(gdict,netG,optimizerG,cl,ip_fname,op_loc,op_strg='gen_img_best_spec',op_size=200)
 
         ip_fname=gdict['save_dir']+'/models/checkpoint_best_hist.tar'
-        f_gen_images(gdict,netG,optimizerG,cl,ip_fname,op_loc,op_strg='best_hist',op_size=200)
+        f_gen_images(gdict,netG,optimizerG,cl,ip_fname,op_loc,op_strg='gen_img_best_hist',op_size=200)
 
     tf=time.time()
     logging.info("Total time %s"%(tf-t0))

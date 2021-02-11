@@ -1,8 +1,6 @@
 
 import numpy as np
 import torch
-import torch.fft
-
 
 ############
 ### Numpy functions ### Not used in the code. Just to test the pytorch functions
@@ -206,12 +204,11 @@ def f_torch_compute_spectrum(arr,r,ind):
     
     GLOBAL_MEAN=1.0
     arr=(arr-GLOBAL_MEAN)/(GLOBAL_MEAN)
-    
-    y1=torch.fft.fftn(arr,dim=(-2,-1))
-    real,imag=f_torch_fftshift(y1.real,y1.imag) 
-    
+    y1=torch.rfft(arr,signal_ndim=2,onesided=False)
+    real,imag=f_torch_fftshift(y1[:,:,0],y1[:,:,1])    ## last index is real/imag part
     y2=real**2+imag**2     ## Absolute value of each complex number
     
+#     print(y2.shape)
     z1=f_torch_get_azimuthalAverage(y2,r,ind)     ## Compute radial profile
     
     return z1

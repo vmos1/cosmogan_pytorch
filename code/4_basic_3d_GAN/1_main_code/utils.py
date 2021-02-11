@@ -137,7 +137,7 @@ def f_gen_images(gdict,netG,optimizerG,ip_fname,op_loc,op_strg='inf_img_',op_siz
     # Generate fake image batch with G
     netG.eval() ## This is required before running inference
     gen = netG(noise)
-    gen_images=gen.detach().cpu().numpy()[:,0,:,:]
+    gen_images=gen.detach().cpu().numpy()[:,:,:,:]
     print(gen_images.shape)
     
     op_fname='%s_epoch-%s_step-%s.npy'%(op_strg,epoch,iters)

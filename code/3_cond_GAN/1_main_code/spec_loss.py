@@ -1,6 +1,7 @@
 
 import numpy as np
 import torch
+import torch.fft
 from utils import *
 
 ############
@@ -24,8 +25,7 @@ def f_radial_profile(data, center=(None,None)):
     
     return radialprofile[1:-1]
 
-def f_compute_spectrum(arr,GLOBAL_MEAN=0.9998563):
-    
+def f_compute_spectrum(arr,GLOBAL_MEAN=1.0):
     
     arr=((arr - GLOBAL_MEAN)/GLOBAL_MEAN)
     y1=np.fft.fft2(arr)
@@ -47,7 +47,7 @@ def f_image_spectrum(x,num_channels):
     '''
     print(x.shape)
     mean=[[] for i in range(num_channels)]    
-    sdev=[[] for i in range(num_channels)]    
+    var=[[] for i in range(num_channels)]    
 
     for i in range(num_channels):
         arr=x[:,i,:,:]
@@ -55,10 +55,10 @@ def f_image_spectrum(x,num_channels):
         batch_pk=f_compute_batch_spectrum(arr)
 #         print(batch_pk)
         mean[i]=np.mean(batch_pk,axis=0)
-        sdev[i]=np.std(batch_pk,axis=0)
+        var[i]=np.var(batch_pk,axis=0)
     mean=np.array(mean)
-    sdev=np.array(sdev)
-    return mean,sdev
+    var=np.array(var)
+    return mean,var
 
 ####################
 ### Pytorch code ###
@@ -205,11 +205,12 @@ def f_torch_compute_spectrum(arr,r,ind):
     
     GLOBAL_MEAN=1.0
     arr=(arr-GLOBAL_MEAN)/(GLOBAL_MEAN)
-    y1=torch.rfft(arr,signal_ndim=2,onesided=False)
-    real,imag=f_torch_fftshift(y1[:,:,0],y1[:,:,1])    ## last index is real/imag part
+    
+    y1=torch.fft.fftn(arr,dim=(-2,-1))
+    real,imag=f_torch_fftshift(y1.real,y1.imag) 
+    
     y2=real**2+imag**2     ## Absolute value of each complex number
     
-#     print(y2.shape)
     z1=f_torch_get_azimuthalAverage(y2,r,ind)     ## Compute radial profile
     
     return z1

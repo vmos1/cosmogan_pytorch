@@ -1,11 +1,11 @@
 description: 'GAN'
 
 data:
-    ip_fname: '/global/cfs/cdirs/m3363/vayyar/cosmogan_data/raw_data/3d_data/dataset1_smoothing_const_params_100k/norm_1_train_val.npy'
+    ip_fname: '/global/cfs/cdirs/m3363/vayyar/cosmogan_data/raw_data/3d_data/dataset1_smoothing_const_params_64cube_100k/norm_1_train_val.npy'
     op_loc: '/global/cfs/cdirs/m3363/vayyar/cosmogan_data/results_from_other_code/pytorch/results/3d/'
     image_size: 64
     checkpoint_size: 10
-    num_imgs: 50000
+    num_imgs: 80000
 training:
     workers: 2 #Number of workers for dataloader
     nc: 1 # Number of channels in the training images. For color images this is 3

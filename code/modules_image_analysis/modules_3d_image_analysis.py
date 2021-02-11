@@ -25,9 +25,31 @@ def f_transform(x):
 def f_invtransform(s):
     return 4.*(1. + s)/(1. - s)
 
+## Grid plot 
+def f_plot_grid(arr,cols=16,fig_size=(15,5)):
+    ''' Plot a grid of images
+    '''
+    size=arr.shape[0]    
+    rows=int(np.ceil(size/cols))
+    print(rows,cols)
+    
+    fig,axarr=plt.subplots(rows,cols,figsize=fig_size, gridspec_kw = {'wspace':0, 'hspace':0})
+    if rows==1: axarr=np.reshape(axarr,(rows,cols))
+    if cols==1: axarr=np.reshape(axarr,(rows,cols))
+    
+    for i in range(min(rows*cols,size)):
+        row,col=int(i/cols),i%cols
+        try: 
+            axarr[row,col].imshow(arr[i],origin='lower', cmap='YlGn', extent = [0, 128, 0, 128], norm=Normalize(vmin=-1., vmax=1.))
+        # Drop axis label
+        except Exception as e:
+            print('Exception:',e)
+            pass
+        temp=plt.setp([a.get_xticklabels() for a in axarr[:-1,:].flatten()], visible=False)
+        temp=plt.setp([a.get_yticklabels() for a in axarr[:,1:].flatten()], visible=False)
+
 
 # ## Histogram modules
-
 
 def f_batch_histogram(img_arr,bins,norm,hist_range):
     ''' Compute histogram statistics for a batch of images'''
@@ -96,27 +118,6 @@ def f_compare_pixel_intensity(img_lst,label_lst=['img1','img2'],bkgnd_arr=[],log
     '''
     
     norm=normalize # Whether to normalize the histogram
-    
-    def f_batch_histogram(img_arr,bins,norm,hist_range):
-        ''' Compute histogram statistics for a batch of images'''
-        
-        ## Extracting the range. This is important to ensure that the different histograms are compared correctly
-        if hist_range==None : ulim,llim=np.max(img_arr),np.min(img_arr)
-        else: ulim,llim=hist_range[1],hist_range[0]
-#         print(ulim,llim)
-        ### array of histogram of each image
-        hist_arr=np.array([np.histogram(arr.flatten(), bins=bins, range=(llim,ulim), density=norm) for arr in img_arr]) ## range is important
-        hist=np.stack(hist_arr[:,0]) # First element is histogram array
-#         print(hist.shape)
-
-        bin_list=np.stack(hist_arr[:,1]) # Second element is bin value 
-        ### Compute statistics over histograms of individual images
-        mean,err=np.mean(hist,axis=0),np.std(hist,axis=0)/np.sqrt(hist.shape[0])
-        bin_edges=bin_list[0]
-        centers = (bin_edges[:-1] + bin_edges[1:]) / 2
-#         print(bin_edges,centers)
-
-        return mean,err,centers
     
     plt.figure()
     

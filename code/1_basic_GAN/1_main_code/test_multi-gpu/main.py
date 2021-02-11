@@ -23,6 +23,8 @@ import torch.optim as optim
 import torch.utils.data
 from torchsummary import summary
 from torch.utils.data import DataLoader, TensorDataset
+import torch.distributed as dist
+import socket
 
 import numpy as np
 import pandas as pd
@@ -41,6 +43,26 @@ import collections
 # Import modules from other files
 from utils import *
 from spec_loss import *
+
+
+def try_barrier():
+    """Attempt a barrier but ignore any exceptions"""
+    print('BAR %d'%rank)
+
+    try:
+        dist.barrier()
+    except:
+        pass
+
+def _get_sync_file():
+    """Logic for naming sync file using slurm env variables"""
+    #sync_file_dir = '%s/pytorch-sync-files' % os.environ['SCRATCH']
+    sync_file_dir = '/global/homes/b/balewski/prjs/tmp/local-sync-files'
+    os.makedirs(sync_file_dir, exist_ok=True)
+    sync_file = 'file://%s/pytorch_sync.%s.%s' % (
+        sync_file_dir, os.environ['SLURM_JOB_ID'], os.environ['SLURM_STEP_ID'])
+    return sync_file
+
 
 def f_parse_args():
     """Parse command line arguments."""
@@ -104,13 +126,13 @@ def f_train_loop(dataloader,metrics_df,gdict):
 
             # Forward pass real batch through D
             output = netD(real_cpu).view(-1)
-            errD_real = criterion(output, real_label.float())
+            errD_real = criterion(output, real_label)
             errD_real.backward()
             D_x = output.mean().item()
 
             # Forward pass real batch through D
             output = netD(fake.detach()).view(-1)
-            errD_fake = criterion(output, fake_label.float())
+            errD_fake = criterion(output, fake_label)
             errD_fake.backward()
             D_G_z1 = output.mean().item()
             errD = errD_real + errD_fake
@@ -119,7 +141,7 @@ def f_train_loop(dataloader,metrics_df,gdict):
             ###Update G network: maximize log(D(G(z)))
             netG.zero_grad()
             output = netD(fake).view(-1)
-            errG_adv = criterion(output, g_label.float())
+            errG_adv = criterion(output, g_label)
             # Histogram pixel intensity loss
             hist_gen=f_compute_hist(fake,bins=bns)
             hist_loss=loss_hist(hist_gen,hist_val.to(device))
@@ -211,6 +233,59 @@ def f_train_loop(dataloader,metrics_df,gdict):
 #########################
 
 if __name__=="__main__":
+    
+    device='cuda'
+
+    if device=='cuda':
+        rank = int(os.environ['SLURM_PROCID'])
+        world_size = int(os.environ['SLURM_NTASKS'])
+        locRank=int(os.environ['SLURM_LOCALID'])
+    else:
+        rank=0;  world_size = 1; locRank=0 
+
+    host=socket.gethostname()
+    verb=rank==0
+    print('M:myRank=',rank,'world_size =',world_size,'verb=',verb,host,'locRank=',locRank )
+    masterIP=os.getenv('MASTER_ADDR')
+    if masterIP==None:
+        assert device=='cuda'  # must speciffy MASTER_ADDR
+        sync_file = _get_sync_file()
+        if verb: print('use sync_file =',sync_file)
+    else:
+        sync_file='env://'
+        masterPort=os.getenv('MASTER_PORT')
+        if verb: print('use masterIP',masterIP,masterPort)
+        assert masterPort!=None
+
+    if verb:
+        print('imported PyTorch ver:',torch.__version__)
+
+    dist.init_process_group(backend='nccl', init_method=sync_file, world_size=world_size, rank=rank)
+    print("M:after dist.init_process_group")
+
+    inp_dim=280
+    fc_dim=20
+    out_dim=10
+
+    epochs=15
+    batch_size=16*1024//world_size  # local batch size
+    steps=16
+    num_eve=steps*batch_size
+    learning_rate = 0.02
+
+    num_cpus=5 # to load the data in parallel , -c10 locks 5 phys cores
+
+    # Initialize model 
+    torch.manual_seed(0)
+
+    raise SystemExit
+    
+    
+    
+    
+    
+    
+
     torch.backends.cudnn.benchmark=True
 #     torch.autograd.set_detect_anomaly(True)
 
@@ -222,6 +297,21 @@ if __name__=="__main__":
     config_file=args.config
     config_dict=f_load_config(config_file)
 
+    
+    ### Dist dataparallel
+    
+    
+    if device=='cuda':
+        rank = int(os.environ['SLURM_PROCID'])
+        world_size = int(os.environ['SLURM_NTASKS'])
+        locRank=int(os.environ['SLURM_LOCALID'])
+    else:
+        rank=0;  world_size = 1; locRank=0 
+    
+    
+    dist.init_process_group(backend='nccl', init_method=sync_file, world_size=world_size, rank=rank)
+    print("M:after dist.init_process_group")
+    
     # Initilize variables    
     gdict={}
     f_init_gdict(gdict,config_dict)
@@ -288,7 +378,7 @@ if __name__=="__main__":
     
     #################################
     ####### Read data and precompute ######
-    img=np.load(gdict['ip_fname'],mmap_mode='r')[:gdict['num_imgs']].transpose(0,1,2,3).copy()
+    img=np.load(gdict['ip_fname'],mmap_mode='r')[:gdict['num_imgs']].transpose(0,1,2,3)
     t_img=torch.from_numpy(img)
     logging.info("%s, %s"%(img.shape,t_img.shape))
 
@@ -297,7 +387,7 @@ if __name__=="__main__":
 
     # Precompute metrics with validation data for computing losses
     with torch.no_grad():
-        val_img=np.load(gdict['ip_fname'])[-3000:].transpose(0,1,2,3).copy()
+        val_img=np.load(gdict['ip_fname'])[-3000:].transpose(0,1,2,3)
         t_val_img=torch.from_numpy(val_img).to(gdict['device'])
 
         # Precompute radial coordinates

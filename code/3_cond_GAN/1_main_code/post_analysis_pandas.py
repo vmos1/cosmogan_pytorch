@@ -30,8 +30,7 @@ def parse_args():
     add_arg('--folder','-f', type=str,help='The full path of the folder containing the data to analyze.')
     add_arg('--cores','-c', type=int, default=64,help='Number of cores to use for parallelization')
     add_arg('--bins_type','-bin', type=str, default='uneven',help='Number of cores to use for parallelization')
-    add_arg('--sig_lst','-sl', dest='sigma_list', nargs='*', type = float, default=[], help='List of sigma values')
- 
+
     return parser.parse_args()
 
 ### Transformation functions for image pixel values
@@ -61,7 +60,7 @@ def f_get_sorted_df(main_dir,label):
     fldr_loc=main_dir+'/images/'
 
     files_arr,img_arr=np.array([]),np.array([])
-    files=glob.glob(fldr_loc+'*gen_img_label-{0}_epoch*_step*.npy'.format(label))
+    files=glob.glob(fldr_loc+'*gen_img_*label-{0}_epoch*_step*.npy'.format(label))
     files_arr=np.append(files_arr,files)
     img_arr=np.append(img_arr,['train'] *len(files))
 
@@ -111,7 +110,7 @@ def f_get_images(fname,img_type):
     fname,key=fname,img_type
     a1=np.load(fname)
     
-    samples=a1[:]
+    samples=a1[:,0,:,:]
     return samples
     
 
@@ -214,15 +213,21 @@ if __name__=="__main__":
     
     ## Define bin-edges for histogram
     if args.bins_type=='uneven':
-            bins=np.concatenate([np.array([-0.5]),np.arange(0.5,20.5,1),np.arange(20.5,100.5,5),np.arange(100.5,1000.5,50),np.array([2000])])
+        bins=np.concatenate([np.array([-0.5]),np.arange(0.5,100.5,5),np.arange(100.5,300.5,20),np.arange(300.5,1000.5,50),np.array([2000])]) #bin edges to use
+
     else : bins=np.arange(0,1510,10)
     print("Bins",bins)
     
     transform=False ## Images are in transformed space (-1,1), convert bins to the same space
     if not transform: bins=f_transform(bins)   ### scale to (-1,1)     
     
-    sigma_list=args.sigma_list;label_list=sigma_list;
+    ## Get sigma list from saved image files
+    flist=glob.glob(fldr_name+'/images/gen_img_*_epoch-0*.npy')
+    sigma_list=np.unique(np.array([float(i.split('/')[-1].split('_')[2].split('label-')[-1]) for i in flist]))
+    label_list=sigma_list;
+    del flist
     print(label_list)
+    
     for count,(sigma,label) in enumerate(zip(sigma_list,label_list)):
         
         ### Extract validation data
