@@ -214,7 +214,7 @@ if __name__=="__main__":
     ### Extract validation data
     fname=args.val_data
     print("Using validation data from ",fname)
-    s_val=np.load(fname,mmap_mode='r')[:2000][:,0,:,:]
+    s_val=np.load(fname,mmap_mode='r')[:2000][:,0,:,:,:]
     print(s_val.shape)
 
     ### Get dataframe with file names, sorted by epoch and step
