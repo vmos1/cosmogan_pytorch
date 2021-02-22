@@ -3,19 +3,19 @@ import numpy as np
 import torch
 import torch.fft
 
-
 ############
 ### Numpy functions ### Not used in the code. Just to test the pytorch functions
 ############
 def f_radial_profile(data, center=(None,None)):
     ''' Module to compute radial profile of a 2D image '''
-    y, x = np.indices((data.shape)) # Get a grid of x and y values
+    z, y, x = np.indices((data.shape)) # Get a grid of x and y values
     
-    if center[0]==None and center[1]==None:
-        center = np.array([(x.max()-x.min())/2.0, (y.max()-y.min())/2.0]) # compute centers
+    center=[]
+    if not center:
+        center = np.array([(x.max()-x.min())/2.0, (y.max()-y.min())/2.0, (z.max()-z.min())/2.0]) # compute centers
         
     # get radial values of every pair of points
-    r = np.sqrt((x - center[0])**2 + (y - center[1])**2)
+    r = np.sqrt((x - center[0])**2 + (y - center[1])**2+ + (z - center[2])**2)
     r = r.astype(np.int)
     
     # Compute histogram of r values
@@ -25,133 +25,62 @@ def f_radial_profile(data, center=(None,None)):
     
     return radialprofile[1:-1]
 
-def f_compute_spectrum(arr,GLOBAL_MEAN=0.9998563):
-    
-    
+def f_compute_spectrum(arr):
+    GLOBAL_MEAN=1.0
     arr=((arr - GLOBAL_MEAN)/GLOBAL_MEAN)
-    y1=np.fft.fft2(arr)
-    y1=fftpack.fftshift(y1)
-
+    y1=np.fft.fftn(arr)
+    y1=np.fft.fftshift(y1)
+#     print(y1.shape)
     y2=abs(y1)**2
     z1=f_radial_profile(y2)
     return(z1)
-
-    
+   
 def f_compute_batch_spectrum(arr):
     batch_pk=np.array([f_compute_spectrum(i) for i in arr])
     return batch_pk
 
-
+### Code ###
 def f_image_spectrum(x,num_channels):
     '''
     Data has to be in the form (batch,channel,x,y)
     '''
-    print(x.shape)
     mean=[[] for i in range(num_channels)]    
     sdev=[[] for i in range(num_channels)]    
 
     for i in range(num_channels):
-        arr=x[:,i,:,:]
+        arr=x[:,i,:,:,:]
 #         print(i,arr.shape)
         batch_pk=f_compute_batch_spectrum(arr)
 #         print(batch_pk)
         mean[i]=np.mean(batch_pk,axis=0)
-        sdev[i]=np.std(batch_pk,axis=0)
+        sdev[i]=np.var(batch_pk,axis=0)
     mean=np.array(mean)
     sdev=np.array(sdev)
     return mean,sdev
 
+
+
 ####################
 ### Pytorch code ###
 ####################
-
-def f_torch_radial_profile(img, center=(None,None)):
-    ''' Module to compute radial profile of a 2D image 
-    Bincount causes issues with backprop, so not using this code
-    '''
-    
-    y,x=torch.meshgrid(torch.arange(0,img.shape[0]),torch.arange(0,img.shape[1])) # Get a grid of x and y values
-    if center[0]==None and center[1]==None:
-        center = torch.Tensor([(x.max()-x.min())/2.0, (y.max()-y.min())/2.0]) # compute centers
-
-    # get radial values of every pair of points
-    r = torch.sqrt((x - center[0])**2 + (y - center[1])**2)
-    r= r.int()
-    
-#     print(r.shape,img.shape)
-    # Compute histogram of r values
-    tbin=torch.bincount(torch.reshape(r,(-1,)),weights=torch.reshape(img,(-1,)).type(torch.DoubleTensor))
-    nr = torch.bincount(torch.reshape(r,(-1,)))
-    radialprofile = tbin / nr
-    
-    return radialprofile[1:-1]
-
-
-def f_torch_get_azimuthalAverage_with_batch(image, center=None): ### Not used in this code.
-    """
-    Calculate the azimuthally averaged radial profile. Only use if you need to combine batches
-
-    image - The 2D image
-    center - The [x,y] pixel coordinates used as the center. The default is 
-             None, which then uses the center of the image (including 
-             fracitonal pixels).
-    source: https://www.astrobetter.com/blog/2010/03/03/fourier-transforms-of-images-in-python/
-    """
-    
-    batch, channel, height, width = image.shape
-    # Create a grid of points with x and y coordinates
-    y, x = np.indices([height,width])
-
-    if not center:
-        center = np.array([(x.max()-x.min())/2.0, (y.max()-y.min())/2.0])
-
-    # Get the radial coordinate for every grid point. Array has the shape of image
-    r = torch.tensor(np.hypot(x - center[0], y - center[1]))
-
-    # Get sorted radii
-    ind = torch.argsort(torch.reshape(r, (batch, channel,-1)))
-    r_sorted = torch.gather(torch.reshape(r, (batch, channel, -1,)),2, ind)
-    i_sorted = torch.gather(torch.reshape(image, (batch, channel, -1,)),2, ind)
-
-    # Get the integer part of the radii (bin size = 1)
-    r_int=r_sorted.to(torch.int32)
-
-    # Find all pixels that fall within each radial bin.
-    deltar = r_int[:,:,1:] - r_int[:,:,:-1]  # Assumes all radii represented
-    rind = torch.reshape(torch.where(deltar)[2], (batch, -1))    # location of changes in radius
-    rind=torch.unsqueeze(rind,1)
-    nr = (rind[:,:,1:] - rind[:,:,:-1]).type(torch.float)       # number of radius bin
-
-    # Cumulative sum to figure out sums for each radius bin
-
-    csum = torch.cumsum(i_sorted, axis=-1)
-#     print(csum.shape,rind.shape,nr.shape)
-
-    tbin = torch.gather(csum, 2, rind[:,:,1:]) - torch.gather(csum, 2, rind[:,:,:-1])
-    radial_prof = tbin / nr
-
-    return radial_prof
-
-
 def f_get_rad(img):
     ''' Get the radial tensor for use in f_torch_get_azimuthalAverage '''
     
-    height,width=img.shape[-2:]
+    height,width,depth=img.shape[-3:]
     # Create a grid of points with x and y coordinates
-    y, x = np.indices([height,width])
+    z,y,x = np.indices([height,width,depth])
     
     center=[]
     if not center:
-        center = np.array([(x.max()-x.min())/2.0, (y.max()-y.min())/2.0])
+        center = np.array([(x.max()-x.min())/2.0, (y.max()-y.min())/2.0, (z.max()-z.min())/2.0])
 
     # Get the radial coordinate for every grid point. Array has the shape of image
-    r = torch.tensor(np.hypot(x - center[0], y - center[1]))
-    
+    r= torch.tensor(np.sqrt((x-center[0])**2 + (y-center[1])**2 + (z-center[2])**2))
+        
     # Get sorted radii
     ind = torch.argsort(torch.reshape(r, (-1,)))
-    
-    return r.detach(),ind.detach()
 
+    return r.detach(),ind.detach()
 
 def f_torch_get_azimuthalAverage(image,r,ind):
     """
@@ -164,16 +93,17 @@ def f_torch_get_azimuthalAverage(image,r,ind):
     source: https://www.astrobetter.com/blog/2010/03/03/fourier-transforms-of-images-in-python/
     """
     
-#     height, width = image.shape
+#     height,width,depth=img.shape[-3:]
 #     # Create a grid of points with x and y coordinates
-#     y, x = np.indices([height,width])
-
+#     z,y,x = np.indices([height,width,depth])
+    
+#     center=[]
 #     if not center:
-#         center = np.array([(x.max()-x.min())/2.0, (y.max()-y.min())/2.0])
+#         center = np.array([(x.max()-x.min())/2.0, (y.max()-y.min())/2.0, (z.max()-z.min())/2.0])
 
 #     # Get the radial coordinate for every grid point. Array has the shape of image
-#     r = torch.tensor(np.hypot(x - center[0], y - center[1]))
-
+#     r= torch.tensor(np.sqrt((x-center[0])**2 + (y-center[1])**2 + (z-center[2])**2))
+        
 #     # Get sorted radii
 #     ind = torch.argsort(torch.reshape(r, (-1,)))
 
@@ -207,14 +137,13 @@ def f_torch_compute_spectrum(arr,r,ind):
     GLOBAL_MEAN=1.0
     arr=(arr-GLOBAL_MEAN)/(GLOBAL_MEAN)
     
-    y1=torch.fft.fftn(arr,dim=(-2,-1))
-    real,imag=f_torch_fftshift(y1.real,y1.imag) 
+    y1=torch.fft.fftn(arr,dim=(-3,-2,-1))
+    real,imag=f_torch_fftshift(y1.real,y1.imag)    
     
     y2=real**2+imag**2     ## Absolute value of each complex number
-    
     z1=f_torch_get_azimuthalAverage(y2,r,ind)     ## Compute radial profile
-    
     return z1
+
 
 def f_torch_compute_batch_spectrum(arr,r,ind):
     
@@ -228,9 +157,9 @@ def f_torch_image_spectrum(x,num_channels,r,ind):
     '''
     mean=[[] for i in range(num_channels)]    
     sdev=[[] for i in range(num_channels)]    
-
+    
     for i in range(num_channels):
-        arr=x[:,i,:,:]
+        arr=x[:,i,:,:,:]
         batch_pk=f_torch_compute_batch_spectrum(arr,r,ind)
         mean[i]=torch.mean(batch_pk,axis=0)
 #         sdev[i]=torch.std(batch_pk,axis=0)/np.sqrt(batch_pk.shape[0])
@@ -241,6 +170,7 @@ def f_torch_image_spectrum(x,num_channels,r,ind):
     sdev=torch.stack(sdev)
         
     return mean,sdev
+
 
 def f_compute_hist(data,bins):
     

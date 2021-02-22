@@ -1,6 +1,7 @@
 
 import numpy as np
 import torch
+import torch.fft
 from utils import *
 
 ############
@@ -24,8 +25,7 @@ def f_radial_profile(data, center=(None,None)):
     
     return radialprofile[1:-1]
 
-def f_compute_spectrum(arr,GLOBAL_MEAN=0.9998563):
-    
+def f_compute_spectrum(arr,GLOBAL_MEAN=1.0):
     
     arr=((arr - GLOBAL_MEAN)/GLOBAL_MEAN)
     y1=np.fft.fft2(arr)
@@ -47,7 +47,7 @@ def f_image_spectrum(x,num_channels):
     '''
     print(x.shape)
     mean=[[] for i in range(num_channels)]    
-    sdev=[[] for i in range(num_channels)]    
+    var=[[] for i in range(num_channels)]    
 
     for i in range(num_channels):
         arr=x[:,i,:,:]
@@ -55,10 +55,10 @@ def f_image_spectrum(x,num_channels):
         batch_pk=f_compute_batch_spectrum(arr)
 #         print(batch_pk)
         mean[i]=np.mean(batch_pk,axis=0)
-        sdev[i]=np.std(batch_pk,axis=0)
+        var[i]=np.var(batch_pk,axis=0)
     mean=np.array(mean)
-    sdev=np.array(sdev)
-    return mean,sdev
+    var=np.array(var)
+    return mean,var
 
 ####################
 ### Pytorch code ###
@@ -205,11 +205,12 @@ def f_torch_compute_spectrum(arr,r,ind):
     
     GLOBAL_MEAN=1.0
     arr=(arr-GLOBAL_MEAN)/(GLOBAL_MEAN)
-    y1=torch.rfft(arr,signal_ndim=2,onesided=False)
-    real,imag=f_torch_fftshift(y1[:,:,0],y1[:,:,1])    ## last index is real/imag part
+    
+    y1=torch.fft.fftn(arr,dim=(-2,-1))
+    real,imag=f_torch_fftshift(y1.real,y1.imag) 
+    
     y2=real**2+imag**2     ## Absolute value of each complex number
     
-#     print(y2.shape)
     z1=f_torch_get_azimuthalAverage(y2,r,ind)     ## Compute radial profile
     
     return z1
@@ -277,47 +278,15 @@ def loss_hist(hist_sample,hist_ref):
     lambda1=1.0
     return lambda1*torch.log(torch.mean(torch.pow(hist_sample-hist_ref,2)))
 
-
-# def f_get_hist_cond(img_tensor,categories,bins,gdict,hist_val_tnsr):
-#     ''' Module to compute pixel intensity histogram loss for conditional GAN '''
-#     num_classes=gdict['num_classes'];device=gdict['device']
-    
-#     loss_hist_tensor=torch.zeros(num_classes,device=device)
-#     for i in np.arange(num_classes):    
-#         idxs=torch.where(categories==i)[0] ## Get indices for that category
-#     #     print(i,idxs.size(0))
-#         if idxs.size(0)>1: 
-#             img=img_tensor[idxs]
-#             loss_hist_tensor[i]=loss_hist(f_compute_hist(img,bins),hist_val_tnsr[i])
-#     hist_loss=loss_hist_tensor.sum()
-    
-#     return hist_loss
-
-# def f_get_spec_cond(img_tensor,categories,gdict,spec_mean_tnsr,spec_sdev_tnsr,r,ind):
-#     ''' Module to compute spectral loss for conditional GAN '''
-#     num_classes=gdict['num_classes'];device=gdict['device']
-    
-#     loss_spec_tensor=torch.zeros(num_classes,device=device)
-#     for i in np.arange(num_classes):    
-#         idxs=torch.where(categories==i)[0] ## Get indices for that category
-#     #     print(i,idxs.size(0))
-#         if idxs.size(0)>1: 
-#             img=img_tensor[idxs]
-#             mean,sdev=f_torch_image_spectrum(f_invtransform(img),1,r,ind)
-#             loss_spec_tensor[i]=loss_spectrum(mean,spec_mean_tnsr[i],sdev,spec_sdev_tnsr[i],gdict['image_size'],gdict['lambda1'])
-#     spec_loss=loss_spec_tensor.sum()
-#     return spec_loss
-
 ### Edits for float labels
 
-def f_get_hist_cond(img_tensor,categories,bins,gdict,hist_val_tnsr):
+def f_get_hist_cond(img_tensor,cosm_params,bins,gdict,hist_val_tnsr):
     ''' Module to compute pixel intensity histogram loss for conditional GAN '''
     
-    loss_hist_tensor=torch.zeros(gdict['num_classes'],device=gdict['device'])
-    cls_lst=gdict['sigma_list'] if gdict['model_float'] else np.arange(gdict['num_classes'])
+    loss_hist_tensor=torch.zeros(len(gdict['sigma_list']),device=gdict['device'])
     
-    for count,i in enumerate(cls_lst):   
-        idxs=torch.where(categories==i)[0] ## Get indices for that category
+    for count,i in enumerate(gdict['sigma_list']):   
+        idxs=torch.where(cosm_params==i)[0] ## Get indices for that category
         if idxs.size(0)>1: 
             num_frac=idxs.size(0)/img_tensor.shape[0] ## Fraction of points in the category
             img=img_tensor[idxs]
@@ -326,14 +295,13 @@ def f_get_hist_cond(img_tensor,categories,bins,gdict,hist_val_tnsr):
     
     return hist_loss
 
-def f_get_spec_cond(img_tensor,categories,gdict,spec_mean_tnsr,spec_sdev_tnsr,r,ind):
+def f_get_spec_cond(img_tensor,cosm_params,gdict,spec_mean_tnsr,spec_sdev_tnsr,r,ind):
     ''' Module to compute spectral loss for conditional GAN '''
     
-    loss_spec_tensor=torch.zeros(gdict['num_classes'],device=gdict['device'])
-    cls_lst=gdict['sigma_list'] if gdict['model_float'] else np.arange(gdict['num_classes'])
+    loss_spec_tensor=torch.zeros(len(gdict['sigma_list']),device=gdict['device'])
     
-    for count,i in enumerate(cls_lst):  
-        idxs=torch.where(categories==i)[0] ## Get indices for that category
+    for count,i in enumerate(gdict['sigma_list']):  
+        idxs=torch.where(cosm_params==i)[0] ## Get indices for that category
         if idxs.size(0)>1: 
             num_frac=idxs.size(0)/img_tensor.shape[0] ## Fraction of points in the category
             img=img_tensor[idxs]

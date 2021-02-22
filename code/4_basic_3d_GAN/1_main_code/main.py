@@ -99,7 +99,7 @@ def f_train_loop(dataloader,metrics_df,gdict):
                 real_label[idx]=0; fake_label[idx]=1
 
             # Generate fake image batch with G
-            noise = torch.randn(b_size, 1, 1, nz, device=device)
+            noise = torch.randn(b_size, 1, 1, 1, nz, device=device)
             fake = netG(noise)            
 
             # Forward pass real batch through D
@@ -288,7 +288,8 @@ if __name__=="__main__":
     
     #################################
     ####### Read data and precompute ######
-    img=np.load(gdict['ip_fname'],mmap_mode='r')[:gdict['num_imgs']].transpose(0,1,2,3).copy()
+    img=np.load(gdict['ip_fname'],mmap_mode='r')[:gdict['num_imgs']].transpose(0,1,2,3,4).astype(np.float32).copy()
+#     img=f_transform(img)
     t_img=torch.from_numpy(img)
     logging.info("%s, %s"%(img.shape,t_img.shape))
 
@@ -297,7 +298,8 @@ if __name__=="__main__":
 
     # Precompute metrics with validation data for computing losses
     with torch.no_grad():
-        val_img=np.load(gdict['ip_fname'])[-3000:].transpose(0,1,2,3).copy()
+        val_img=np.load(gdict['ip_fname'],mmap_mode='r')[-1000:].transpose(0,1,2,3,4).astype(np.float32).copy()
+#         val_img=f_transform(val_img)
         t_val_img=torch.from_numpy(val_img).to(gdict['device'])
 
         # Precompute radial coordinates
@@ -306,7 +308,7 @@ if __name__=="__main__":
         # Stored mean and std of spectrum for full input data once
         mean_spec_val,sdev_spec_val=f_torch_image_spectrum(f_invtransform(t_val_img),1,r,ind)
         hist_val=f_compute_hist(t_val_img,bins=gdict['bns'])
-        del val_img; del t_val_img; del img; del t_img
+    #     del val_img; del t_val_img; del img; del t_img
 
     #################################
     ###### Build Networks ###
@@ -316,18 +318,18 @@ if __name__=="__main__":
     netG = Generator(gdict).to(gdict['device'])
     netG.apply(weights_init)
 #     logging.info(netG)
-    summary(netG,(1,1,64))
+    summary(netG,(1,1,1,64))
     # Create Discriminator
     netD = Discriminator(gdict).to(gdict['device'])
     netD.apply(weights_init)
 #     logging.info(netD)
-    summary(netD,(1,128,128))
+    summary(netD,(1,64,64,64))
     
     logging.info("Number of GPUs used %s"%(gdict['ngpu']))
     if (gdict['multi-gpu']):
         netG = nn.DataParallel(netG, list(range(gdict['ngpu'])))
         netD = nn.DataParallel(netD, list(range(gdict['ngpu'])))
- 
+    
     #### Initialize networks ####
     # criterion = nn.BCELoss()
     criterion = nn.BCEWithLogitsLoss()
@@ -335,7 +337,7 @@ if __name__=="__main__":
     if gdict['mode']=='fresh':
         optimizerD = optim.Adam(netD.parameters(), lr=gdict['learn_rate'], betas=(gdict['beta1'], 0.999),eps=1e-7)
         optimizerG = optim.Adam(netG.parameters(), lr=gdict['learn_rate'], betas=(gdict['beta1'], 0.999),eps=1e-7)
-        ### Initialize variables      
+        ### Initialize variables
         iters,start_epoch,best_chi1,best_chi2=0,0,1e10,1e10    
     
     ### Load network weights for continuing run
@@ -348,8 +350,8 @@ if __name__=="__main__":
     for key,val in zip(['best_chi1','best_chi2','iters','start_epoch'],[best_chi1,best_chi2,iters,start_epoch]): gdict[key]=val
     logging.info(gdict)
     
-    fixed_noise = torch.randn(gdict['batchsize'], 1, 1, gdict['nz'], device=gdict['device']) #Latent vectors to view G progress    
-    
+    fixed_noise = torch.randn(gdict['batchsize'], 1, 1, 1, gdict['nz'], device=gdict['device']) #Latent vectors to view G progress    
+   
     #################################       
     ### Set up metrics dataframe
     cols=['step','epoch','Dreal','Dfake','Dfull','G_adv','G_full','spec_loss','hist_loss','spec_chi','hist_chi','D(x)','D_G_z1','D_G_z2','time']
@@ -364,10 +366,10 @@ if __name__=="__main__":
     ## Generate images for best saved models ######
     op_loc=gdict['save_dir']+'/images/'
     ip_fname=gdict['save_dir']+'/models/checkpoint_best_spec.tar'
-    f_gen_images(gdict,netG,optimizerG,ip_fname,op_loc,op_strg='best_spec',op_size=2000)
+    f_gen_images(gdict,netG,optimizerG,ip_fname,op_loc,op_strg='best_spec',op_size=500)
     
     ip_fname=gdict['save_dir']+'/models/checkpoint_best_hist.tar'
-    f_gen_images(gdict,netG,optimizerG,ip_fname,op_loc,op_strg='best_hist',op_size=2000)
+    f_gen_images(gdict,netG,optimizerG,ip_fname,op_loc,op_strg='best_hist',op_size=500)
     
     tf=time.time()
     logging.info("Total time %s"%(tf-t0))

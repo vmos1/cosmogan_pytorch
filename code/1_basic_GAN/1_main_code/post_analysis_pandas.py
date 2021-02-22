@@ -18,8 +18,8 @@ import time
 
 from pandarallel import pandarallel
 
-sys.path.append('/global/u1/v/vpa/project/jpt_notebooks/Cosmology/Cosmo_GAN/repositories/lbann_cosmogan/3_analysis')
-from modules_image_analysis import *
+sys.path.append('/global/u1/v/vpa/project/jpt_notebooks/Cosmology/Cosmo_GAN/repositories/cosmogan_pytorch/code/modules_image_analysis/')
+from modules_img_analysis import *
 
 def parse_args():
     """Parse command line arguments."""
@@ -110,7 +110,7 @@ def f_get_images(fname,img_type):
     fname,key=fname,img_type
     a1=np.load(fname)
     
-    samples=a1[:]
+    samples=a1[:,0,:,:]
     return samples
     
 
@@ -223,7 +223,8 @@ if __name__=="__main__":
     t1=time.time()
     transform=False ## Images are in transformed space (-1,1), convert bins to the same space
     if args.bins_type=='uneven':
-        bins=np.concatenate([np.array([-0.5]),np.arange(0.5,20.5,1),np.arange(20.5,100.5,5),np.arange(100.5,1000.5,50),np.array([2000])]) #bin edges to use
+        bins=np.concatenate([np.array([-0.5]),np.arange(0.5,100.5,5),np.arange(100.5,300.5,20),np.arange(300.5,1000.5,50),np.array([2000])]) #bin edges to use
+
     else : 
         bins=np.arange(0,1510,10)
     print("Bins",bins)

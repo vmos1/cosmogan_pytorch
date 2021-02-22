@@ -60,17 +60,17 @@ def f_parse_args():
     add_arg('--specloss','-spl',dest='spec_loss_flag',action='store_true', help='Whether to use spectral loss')
     add_arg('--deterministic','-dt',action='store_true', help='Run with deterministic sequence')
     add_arg('--lst','-l', dest='save_steps_list', nargs='*', type = int, default=[], help='List of step values to save model. Usually used for re-run with deterministic')
+    add_arg('--sig_lst','-sl', dest='sigma_list', nargs='*', type = float, default=[], help='List of sigma values')
     add_arg('--model','-ml',type=int, choices=[1,2,3,4,5], help='Model number')
     
     return parser.parse_args()
-
 
 def f_train_loop(dataloader,metrics_df,gdict):
     ''' Train single epoch '''
     
     ## Define new variables from dict
-    keys=['start_epoch','epochs','iters','best_chi1','best_chi2','save_dir','device','flip_prob','nz','num_classes','batch_size','bns']
-    start_epoch,epochs,iters,best_chi1,best_chi2,save_dir,device,flip_prob,nz,num_classes,batch_size,bns=list(collections.OrderedDict({key:gdict[key] for key in keys}).values())
+    keys=['start_epoch','epochs','iters','best_chi1','best_chi2','save_dir','device','flip_prob','nz','batch_size','bns']
+    start_epoch,epochs,iters,best_chi1,best_chi2,save_dir,device,flip_prob,nz,batch_size,bns=list(collections.OrderedDict({key:gdict[key] for key in keys}).values())
     
     for epoch in range(start_epoch,epochs):
         t_epoch_start=time.time()
@@ -84,8 +84,7 @@ def f_train_loop(dataloader,metrics_df,gdict):
             netD.zero_grad()
 
             real_cpu = data[0].to(device)
-            real_categories=data[1].to(device)
-            real_categories=f_get_sigma(real_categories,gdict)
+            real_cosm_params=data[1].to(device)
 
             b_size = real_cpu.size(0)
             real_label = torch.full((b_size,), 1, device=device)
@@ -96,21 +95,21 @@ def f_train_loop(dataloader,metrics_df,gdict):
                 real_label[idx]=0; fake_label[idx]=1
             
             noise = torch.randn(b_size, 1, 1, nz, device=device)
-            fake_categories=torch.randint(gdict['num_classes'],(gdict['batch_size'],1),device=gdict['device'])
-            fake_categories=f_get_sigma(fake_categories,gdict)
-            
+            rnd_idx=torch.randint(len(gdict['sigma_list']),(gdict['batch_size'],1),device=gdict['device'])
+            fake_cosm_params=torch.tensor([gdict['sigma_list'][i] for i in rnd_idx.long()],device=gdict['device']).unsqueeze(-1)
+
             # Generate fake image batch with G
-            fake = netG(noise,fake_categories)  
+            fake = netG(noise,fake_cosm_params)  
             
             # Forward pass real batch through D
-            output = netD(real_cpu,real_categories).view(-1)
-            errD_real = criterion(output, real_label)
+            output = netD(real_cpu,real_cosm_params).view(-1)
+            errD_real = criterion(output, real_label.float())
             errD_real.backward()
             D_x = output.mean().item()
             
             # Forward pass fake batch through D
-            output = netD(fake.detach(),fake_categories).view(-1)
-            errD_fake = criterion(output, fake_label)
+            output = netD(fake.detach(),fake_cosm_params).view(-1)
+            errD_fake = criterion(output, fake_label.float())
             errD_fake.backward()
             D_G_z1 = output.mean().item()
             errD = errD_real + errD_fake
@@ -118,13 +117,13 @@ def f_train_loop(dataloader,metrics_df,gdict):
             
             ###Update G network: maximize log(D(G(z)))
             netG.zero_grad()
-            output = netD(fake,fake_categories).view(-1)
-            errG_adv = criterion(output, g_label)
+            output = netD(fake,fake_cosm_params).view(-1)
+            errG_adv = criterion(output, g_label.float())
             # Histogram pixel intensity loss
-            hist_loss=f_get_hist_cond(fake,fake_categories,bns,gdict,hist_val_tnsr)
+            hist_loss=f_get_hist_cond(fake,fake_cosm_params,bns,gdict,hist_val_tnsr)
             
             # Add spectral loss
-            spec_loss=f_get_spec_cond(fake,fake_categories,gdict,spec_mean_tnsr,spec_sdev_tnsr,r,ind)
+            spec_loss=f_get_spec_cond(fake,fake_cosm_params,gdict,spec_mean_tnsr,spec_sdev_tnsr,r,ind)
             
             if gdict['spec_loss_flag']: errG=errG_adv+spec_loss
             else: errG=errG_adv
@@ -160,9 +159,9 @@ def f_train_loop(dataloader,metrics_df,gdict):
             ### Compute validation metrics for updated model
             netG.eval()
             with torch.no_grad():
-                fake = netG(fixed_noise,fixed_categories)   
-                hist_chi=f_get_hist_cond(fake,fixed_categories,bns,gdict,hist_val_tnsr)
-                spec_chi=f_get_spec_cond(fake,fixed_categories,gdict,spec_mean_tnsr,spec_sdev_tnsr,r,ind)
+                fake = netG(fixed_noise,fixed_cosm_params)   
+                hist_chi=f_get_hist_cond(fake,fixed_cosm_params,bns,gdict,hist_val_tnsr)
+                spec_chi=f_get_spec_cond(fake,fixed_cosm_params,gdict,spec_mean_tnsr,spec_sdev_tnsr,r,ind)
 
             # Storing chi for next step
             for col,val in zip(['spec_chi','hist_chi'],[spec_chi.item(),hist_chi.item()]):  metrics_df.loc[iters,col]=val            
@@ -181,8 +180,9 @@ def f_train_loop(dataloader,metrics_df,gdict):
                     f_save_checkpoint(gdict,epoch,iters,best_chi1,best_chi2,netG,netD,optimizerG,optimizerD,save_loc=save_dir+'/models/checkpoint_best_spec.tar')
                     best_chi2=spec_chi.item()
                     logging.info("Saving best spec model at epoch %s, step %s"%(epoch,iters))
-                    
-                if iters in gdict['save_steps_list']:
+                
+                if ((epoch>7) and (epoch<16) and ((iters % gdict['checkpoint_size'] == 0)) and (hist_chi<best_chi1*0.5) and (spec_chi<best_chi2*1.1)):
+#                 if iters in gdict['save_steps_list']:
                     f_save_checkpoint(gdict,epoch,iters,best_chi1,best_chi2,netG,netD,optimizerG,optimizerD,save_loc=save_dir+'/models/checkpoint_{0}.tar'.format(iters))
                     logging.info("Saving given step at epoch %s, step %s."%(epoch,iters))
                     
@@ -190,12 +190,11 @@ def f_train_loop(dataloader,metrics_df,gdict):
             if ((iters % gdict['checkpoint_size'] == 0) or ((epoch == epochs-1) and (count == len(dataloader)-1))):
                 netG.eval()
                 with torch.no_grad():
-                    for category in range(num_classes):
-                        tnsr_categories=(torch.ones(batch_size,device=device)*category).view(batch_size,1)
-                        tnsr_categories=f_get_sigma(tnsr_categories,gdict)
-                        fake = netG(fixed_noise,tnsr_categories).detach().cpu()
-                        img_arr=np.array(fake[:,0,:,:])
-                        fname='gen_img_label-%s_epoch-%s_step-%s'%(category,epoch,iters)
+                    for c_pars in gdict['sigma_list']:
+                        tnsr_cosm_params=(torch.ones(batch_size,device=device)*c_pars).view(batch_size,1)
+                        fake = netG(fixed_noise,tnsr_cosm_params).detach().cpu()
+                        img_arr=np.array(fake[:,:,:,:])
+                        fname='gen_img_label-%s_epoch-%s_step-%s'%(c_pars,epoch,iters)
                         np.save(save_dir+'/images/'+fname,img_arr)
         
         t_epoch_end=time.time()
@@ -219,7 +218,6 @@ def f_init_gdict(gdict,config_dict):
 
 if __name__=="__main__":
     torch.backends.cudnn.benchmark=True
-#     torch.backends.cudnn.deterministic=True
     
     t0=time.time()
     #################################
@@ -234,7 +232,7 @@ if __name__=="__main__":
     f_init_gdict(gdict,config_dict)
     
     ## Add args variables to gdict
-    gdict['sigma_list']=[0.5,0.8,1.1]
+    gdict['sigma_list']=args.sigma_list
     for key in ['ngpu','batch_size','mode','spec_loss_flag','epochs','learn_rate','lambda1','save_steps_list','model']:
         gdict[key]=vars(args)[key]
        
@@ -272,15 +270,9 @@ if __name__=="__main__":
     
     ## Special declarations
     gdict['bns']=50
-    gdict['num_classes']=len(gdict['sigma_list'])
     gdict['device']=torch.device("cuda" if (torch.cuda.is_available() and gdict['ngpu'] > 0) else "cpu")
     gdict['ngpu']=torch.cuda.device_count()
     
-#    gdict['model_float']=False
-    gdict['model_float']=True
-    gdict['categories']=gdict['sigma_list'] if gdict['model_float'] else np.arange(gdict['num_classes'],dtype=float)
-
-
     gdict['multi-gpu']=True if (gdict['device'].type == 'cuda') and (gdict['ngpu'] > 1) else False 
     logging.info(gdict)
     
@@ -291,13 +283,14 @@ if __name__=="__main__":
     random.seed(manualSeed)
     np.random.seed(manualSeed)
     torch.manual_seed(manualSeed)
+    torch.cuda.manual_seed(manualSeed)
     torch.cuda.manual_seed_all(manualSeed)
     logging.info('Device:{0}'.format(gdict['device']))
 
     if args.deterministic: 
         logging.info("Running with deterministic sequence. Performance will be slower")
         torch.backends.cudnn.deterministic=True
-#         torch.backends.cudnn.enabled = False
+        torch.backends.cudnn.enabled = False
         torch.backends.cudnn.benchmark = False
     
     #################################   
@@ -306,20 +299,20 @@ if __name__=="__main__":
         fname=gdict['ip_fname']+'/norm_1_sig_%s_train_val.npy'%(sigma)
         x=np.load(fname,mmap_mode='r')[:gdict['num_imgs']].transpose(0,1,2,3)
         size=x.shape[0]
-        y=count*np.ones(size)
+        y=sigma*np.ones(size)
 
         if count==0:
             img=x[:]
-            lab=y[:]
+            c_pars=y[:]
         else: 
             img=np.vstack([img,x]) # Store images
-            lab=np.hstack([lab,y]) # Store class labels
+            c_pars=np.hstack([c_pars,y]) # Store cosmological parameters
 
     t_img=torch.from_numpy(img)
-    labels=torch.LongTensor(lab).view(size*len(gdict['sigma_list']),1)
-    logging.info("%s, %s"%(labels.shape,t_img.shape))
+    cosm_params=torch.Tensor(c_pars).view(size*len(gdict['sigma_list']),1)
+    logging.info("%s, %s"%(cosm_params.shape,t_img.shape))
     
-    dataset=TensorDataset(t_img,labels)
+    dataset=TensorDataset(t_img,cosm_params)
     dataloader=DataLoader(dataset,batch_size=gdict['batch_size'],shuffle=True,num_workers=0,drop_last=True)
 
     # Precompute metrics with validation data for computing losses
@@ -328,7 +321,7 @@ if __name__=="__main__":
         
         for count,sigma in enumerate(gdict['sigma_list']):
             ip_fname=gdict['ip_fname']+'/norm_1_sig_%s_train_val.npy'%(sigma)
-            val_img=np.load(ip_fname,mmap_mode='r')[-3000:].transpose(0,1,2,3)
+            val_img=np.load(ip_fname,mmap_mode='r')[-3000:].transpose(0,1,2,3).copy()
             t_val_img=torch.from_numpy(val_img).to(gdict['device'])
 
             # Precompute radial coordinates
@@ -342,9 +335,9 @@ if __name__=="__main__":
             spec_mean_list.append(mean_spec_val)
             spec_sdev_list.append(sdev_spec_val)
             hist_val_list.append(hist_val)
-        spec_mean_tnsr=torch.stack(spec_mean_list)
-        spec_sdev_tnsr=torch.stack(spec_sdev_list)
-        hist_val_tnsr=torch.stack(hist_val_list)
+        spec_mean_tnsr=torch.stack(spec_mean_list).to(gdict['device'])
+        spec_sdev_tnsr=torch.stack(spec_sdev_list).to(gdict['device'])
+        hist_val_tnsr=torch.stack(hist_val_list).to(gdict['device'])
         
         del val_img; del t_val_img; del img; del t_img; del spec_mean_list; del spec_sdev_list; del hist_val_list
     
@@ -389,11 +382,10 @@ if __name__=="__main__":
     for key,val in zip(['best_chi1','best_chi2','iters','start_epoch'],[best_chi1,best_chi2,iters,start_epoch]): gdict[key]=val
     logging.info(gdict)
     
-    fixed_noise = torch.randn(gdict['batch_size'], 1, 1, gdict['nz'], device=gdict['device']) #Latent vectors to view G progress
-    fixed_categories=torch.randint(gdict['num_classes'],(gdict['batch_size'],1),device=gdict['device'])
-    fixed_categories=f_get_sigma(fixed_categories,gdict)
+    fixed_noise = torch.randn(gdict['batch_size'], 1, 1, gdict['nz'], device=gdict['device']) #Latent vectors to view G progress    
+    rnd_idx=torch.randint(len(gdict['sigma_list']),(gdict['batch_size'],1),device=gdict['device'])
+    fixed_cosm_params=torch.tensor([gdict['sigma_list'][i] for i in rnd_idx.long()],device=gdict['device']).unsqueeze(-1)
     
-    logging.info(fixed_categories)
     #################################       
     ### Set up metrics dataframe
     cols=['step','epoch','Dreal','Dfake','Dfull','G_adv','G_full','spec_loss','hist_loss','spec_chi','hist_chi','D(x)','D_G_z1','D_G_z2','time']
@@ -406,13 +398,13 @@ if __name__=="__main__":
     f_train_loop(dataloader,metrics_df,gdict)
 
     ### Generate images for best saved models ######
-    for cl in gdict['categories']:
+    for cl in gdict['sigma_list']:
         op_loc=gdict['save_dir']+'/images/'
         ip_fname=gdict['save_dir']+'/models/checkpoint_best_spec.tar'
-        f_gen_images(gdict,netG,optimizerG,cl,ip_fname,op_loc,op_strg='best_spec',op_size=200)
+        f_gen_images(gdict,netG,optimizerG,cl,ip_fname,op_loc,op_strg='gen_img_best_spec',op_size=200)
 
         ip_fname=gdict['save_dir']+'/models/checkpoint_best_hist.tar'
-        f_gen_images(gdict,netG,optimizerG,cl,ip_fname,op_loc,op_strg='best_hist',op_size=200)
+        f_gen_images(gdict,netG,optimizerG,cl,ip_fname,op_loc,op_strg='gen_img_best_hist',op_size=200)
 
     tf=time.time()
     logging.info("Total time %s"%(tf-t0))
