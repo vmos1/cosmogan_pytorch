@@ -1,5 +1,6 @@
 # Introduction
-Code to implement Generative Adversarial Neural networks to produce images of matter distribution in the universe for different sets of cosmological parameters. Dataset consisits of N-body cosmology simulations. The code is built using the python framework.
+Code to implement Generative Adversarial Neural networks to produce images of matter distribution in the universe for different sets of cosmological parameters. Dataset consisits of N-body cosmology simulation maps obtained from PyCOLA.
+
 The aim is to build conditional GANs to produce images for different classes corresponding to different sets of cosmological parameters.
 
 
