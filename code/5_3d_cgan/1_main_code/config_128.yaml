@@ -1,0 +1,22 @@
+description: 'GAN'
+
+data:
+    ip_fname: '/global/cfs/cdirs/m3363/vayyar/cosmogan_data/raw_data/3d_data/dataset2a_3dcgan_4univs_64cube_simple_splicing'
+    op_loc: '/global/cfs/cdirs/m3363/vayyar/cosmogan_data/results_from_other_code/pytorch/results/3d_cGAN/'
+    image_size: 64
+    checkpoint_size: 10
+    num_imgs: 50000
+training:
+    workers: 2 #Number of workers for dataloader
+    nc: 1 # Number of channels in the training images. For color images this is 3
+    nz: 64 # Size of z latent vector (i.e. size of generator input)
+    ngf: 64 # Size of feature maps in generator
+    ndf: 64 # Size of feature maps in discriminator
+    beta1: 0.5 # Beta1 hyperparam for Adam optimizers
+    kernel_size: 5
+    stride: 2
+    g_padding: 2
+    d_padding: 2
+    flip_prob: 0.01
+    
+
