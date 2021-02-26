@@ -9,9 +9,11 @@ The Table below describes the content of various folders in this repository
 
 | Description | Location |
 | --- | ---|
-| Main code | code/1_basic_GAN/1_main_code/ |
-| Analysis code | code/1_basic_GAN/2_analysis |
-| CGAN - code | code/3_cond_GAN/1_main_code |
-| CGAN - analysis | code/3_cond_GAN/2_cgan_analysis/ |
+| 2d GAN - Main code | code/1_basic_GAN/1_main_code/ |
+| 2d GAN - Analysis code | code/1_basic_GAN/2_analysis |
+| 2d CGAN - code | code/3_cond_GAN/1_main_code |
+| 2d CGAN - analysis | code/3_cond_GAN/2_cgan_analysis/ |
+| 3d GAN | code/4_basic_3d_GAN/1_main_code/ |
+| 3d CGAN - code | code/5_3d_cgan/1_main_code |
 
 
