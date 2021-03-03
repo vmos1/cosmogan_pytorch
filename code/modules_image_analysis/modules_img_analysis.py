@@ -245,7 +245,6 @@ def f_radial_profile(data, center=None):
     nr = np.bincount(r.ravel()) 
     radialprofile = tbin / nr
     
-#     return radialprofile[1:-1]
     return radialprofile[1:-1]
 
 
@@ -382,7 +381,7 @@ def f_image_spectrum_3d(x,num_channels):
     Data has to be in the form (batch,channel,x,y)
     '''
     mean=[[] for i in range(num_channels)]    
-    sdev=[[] for i in range(num_channels)]    
+    var=[[] for i in range(num_channels)]    
 
     for i in range(num_channels):
         arr=x[:,i,:,:,:]
@@ -390,10 +389,10 @@ def f_image_spectrum_3d(x,num_channels):
         batch_pk=f_batch_spectrum_3d(arr)
 #         print(batch_pk)
         mean[i]=np.mean(batch_pk,axis=0)
-        sdev[i]=np.var(batch_pk,axis=0)
+        var[i]=np.var(batch_pk,axis=0)
     mean=np.array(mean)
-    sdev=np.array(sdev)
-    return mean,sdev
+    var=np.array(var)
+    return mean,var
 
 
 def f_plot_spectrum_3d(img_arr,plot=False,label='input',log_scale=True):

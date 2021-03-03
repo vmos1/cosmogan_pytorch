@@ -3,7 +3,7 @@
 #SBATCH --nodes=1
 #SBATCH --qos=debug
 #SBATCH --output=slurm-%x-%j.out
-#SBATCH --image=nugent68/bccp:1.2
+###SBATCH --image=nugent68/bccp:1.2
 #SBATCH --account=m3363
 #SBATCH -C haswell
 #SBATCH --time=00:30:00
@@ -12,7 +12,8 @@
 echo "--start date" `date` `date +%s`
 echo '--hostname ' $HOSTNAME
 
-code_dir='/global/u1/v/vpa/project/jpt_notebooks/Cosmology/Cosmo_GAN/repositories/cosmogan_pytorch/code/6_threeptfcn'
+conda activate nbody2
+code_dir='/global/u1/v/vpa/project/jpt_notebooks/Cosmology/Cosmo_GAN/repositories/cosmogan_pytorch/code/modules_threeptfcn'
 
 ### 2D validation data
 # shifter python $code_dir/compute_3pct_single_file.py --nprocs 128 -n 6 --img_slice 32 --start_i 0 --end_i 500 -f /global/cfs/cdirs/m3363/vayyar/cosmogan_data/raw_data/128_square/dataset_5_4univ_cgan/norm_1_sig_0.8_train_val.npy -sfx 2d_val_0.8 -invtf
@@ -32,6 +33,6 @@ code_dir='/global/u1/v/vpa/project/jpt_notebooks/Cosmology/Cosmo_GAN/repositorie
 ## 3D validation data
 # shifter python $code_dir/compute_3pct_single_file.py --nprocs 32 -n 3 --img_slice 32 --start_i 0 --end_i 32 -f /global/cfs/cdirs/m3363/vayyar/cosmogan_data/raw_data/3d_data/dataset1_smoothing_const_params_64cube_100k/val.npy -sfx 3d_dset1
 
-shifter python $code_dir/compute_3pct_parallelize_single_img.py --nprocs 32 -n 3 --img_slice 16 --start_i 0 --end_i 12 -f /global/cfs/cdirs/m3363/vayyar/cosmogan_data/raw_data/3d_data/dataset1_smoothing_const_params_64cube_100k/val.npy -sfx 3d_dset1 -invtf
+python $code_dir/compute_3pct_parallelize_single_img.py --nprocs 32 -n 3 --img_slice 16 --start_i 0 --end_i 12 -f /global/cfs/cdirs/m3363/vayyar/cosmogan_data/raw_data/3d_data/dataset1_smoothing_const_params_64cube_100k/val.npy -sfx 3d_dset1 -invtf
 
 echo "--end date" `date` `date +%s`

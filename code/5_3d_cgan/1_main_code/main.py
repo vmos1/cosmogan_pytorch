@@ -181,7 +181,7 @@ def f_train_loop(dataloader,metrics_df,gdict):
                     best_chi2=spec_chi.item()
                     logging.info("Saving best spec model at epoch %s, step %s"%(epoch,iters))
 
-                if ((epoch>0) and (epoch<30) and ((iters % gdict['checkpoint_size'] == 0)) and (hist_chi<best_chi1*0.5) and (spec_chi<best_chi2*1.1)):
+                if ((epoch>10) and ((iters % gdict['checkpoint_size'] == 0)) and (hist_chi<best_chi1*0.1) and (spec_chi<best_chi2*1.5)):
 
 #                 if iters in gdict['save_steps_list']:
                     f_save_checkpoint(gdict,epoch,iters,best_chi1,best_chi2,netG,netD,optimizerG,optimizerD,save_loc=save_dir+'/models/checkpoint_{0}.tar'.format(iters))

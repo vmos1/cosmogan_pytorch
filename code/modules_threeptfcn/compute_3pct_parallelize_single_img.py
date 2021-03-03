@@ -2,8 +2,6 @@
 #### Dec 3, 2020
 
 import numpy as np
-#import matplotlib.pyplot as plt
-# from scipy.interpolate import InterpolatedUnivariateSpline
 
 from nbodykit.lab import *
 from nbodykit import setup_logging, style
@@ -147,8 +145,12 @@ if __name__=="__main__":
 
     comm = MPI.COMM_WORLD
     rank = comm.Get_rank()
-    print(comm,rank)
-
+    size=comm.Get_size()
+    print(comm,comm.size,rank,size)
+    
+#     universe_size=comm.Get_attr(MPI.UNIVERSE_SIZE)
+#     print("universe size is ",universe_size)
+    
 #    main_dir='/global/cfs/cdirs/m3363/vayyar/cosmogan_data/results_from_other_code/pytorch/results/128sq/'
 #     fldr='20210115_133716_lambda2.0'
 #     flist=glob.glob(main_dir+fldr+'/images/gen_img_epoch-*_step-110.npy')
@@ -164,18 +166,20 @@ if __name__=="__main__":
 #     flist=glob.glob(fname)
     
     flist=[fname]
+    print(flist)
+
     data_dir='/global/cfs/cdirs/m3363/vayyar/cosmogan_data/3ptfnc_stored_results/'
     if not os.path.exists(data_dir):
         os.makedirs(data_dir)
 
-    print(flist)
     ## Load image file
     print("Reading file",fname)
     idx_lst=np.arange(start_i,end_i,1)
     num_imgs=end_i-start_i
     
-    with TaskManager(cpus_per_task=4,debug=True, use_all_cpus=True, comm=comm) as tm:
+    with TaskManager(cpus_per_task=2,debug=True, use_all_cpus=True, comm=comm) as tm:
         raise SystemExit
+    
 #         a1=np.load(fname)
 
 #         if len(a1.shape)==4:
@@ -193,18 +197,19 @@ if __name__=="__main__":
 #             a1=f_invtransform(a1) # Generated images need to be inv transformed
 #         assert np.max(a1)>100, "%s\t. Incorrect scaling for images. Need to apply inv_transform"%(np.max(a1))
 
-#         for count in tm.iterate(range(num_imgs)):
-#     #     for count in range(num_imgs):
+#     #         for count in tm.iterate(range(num_imgs)):
+#         for count in range(num_imgs):
 #             print(count)
 #             f_write_corr(count,a1,num_corrs,slice_idx=img_size,data_dir=data_dir,suffix=name_suffix)
 
-#     ## Combine files for same input file
-#     a1=f_concat_temp_files(num_imgs,data_dir,'img',name_suffix)
-#     fname=data_dir+'3pt_corr_{0}_{1}.npy'.format(count,name_suffix)
-#     np.save(fname,a1)
+    ## Combine files for same input file
+    a1=f_concat_temp_files(num_imgs,data_dir,'img',name_suffix)
+    fname=data_dir+'3pt_corr_{0}_{1}.npy'.format(count,name_suffix)
+    np.save(fname,a1)
 
         
-#         with TaskManager(cpus_per_task=2,use_all_cpus=True) as tm:
+#     with TaskManager(cpus_per_task=2,use_all_cpus=True) as tm:
+#         print("hello")
             
 #         for bias in tm.iterate(biases):
             
