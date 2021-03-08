@@ -23,7 +23,7 @@ def f_invtransform(s):
     return 4.*(1. + s)/(1. - s)
 
 def f_make_catalog_2d(img):
-    ''' Make catalog for 2d images'''
+    ''' Create catalog for 2 Dimages'''
     x=np.arange(img.shape[0]) 
     y=np.arange(img.shape[1])
 
@@ -37,7 +37,7 @@ def f_make_catalog_2d(img):
     return catalog
 
 def f_make_catalog_3d(img):
-    
+    ''' Create Catalog for 3D images'''
     x=np.arange(img.shape[0]) 
     y=np.arange(img.shape[1])
     z=np.arange(img.shape[2])
@@ -127,7 +127,6 @@ def f_concat_temp_files(num_batches,save_location,file_prefix,file_suffix):
     
 if __name__=="__main__":
     
-    
     from nbodykit import CurrentMPIComm
     comm = CurrentMPIComm.get()
     
@@ -141,12 +140,12 @@ if __name__=="__main__":
     end_i=args.end_i
     procs=args.nprocs # Number of parallel processes
 
-    from mpi4py import MPI
+#     from mpi4py import MPI
 
-    comm = MPI.COMM_WORLD
-    rank = comm.Get_rank()
-    size=comm.Get_size()
-    print(comm,comm.size,rank,size)
+#     comm = MPI.COMM_WORLD
+#     rank = comm.Get_rank()
+#     size=comm.Get_size()
+#     print(comm,comm.size,rank,size)
     
 #     universe_size=comm.Get_attr(MPI.UNIVERSE_SIZE)
 #     print("universe size is ",universe_size)
@@ -155,15 +154,6 @@ if __name__=="__main__":
 #     fldr='20210115_133716_lambda2.0'
 #     flist=glob.glob(main_dir+fldr+'/images/gen_img_epoch-*_step-110.npy')
 #     data_dir=main_dir+fldr+'/3ptfnc_stored_results/'
-    
-#     main_dir='/global/cfs/cdirs/m3363/vayyar/cosmogan_data/raw_data/128_square/dataset_5_4univ_cgan/'
-#     fldr=''
-#     flist=glob.glob(main_dir+'Om0.3_Sg{0}_H70.0.npy'.format(name))
-    
-#     main_dir='/global/cfs/cdirs/m3363/vayyar/cosmogan_data/raw_data/3d_data/dataset3_smoothing_4univ_cgan_varying_sigma_128cube/'
-#     fldr=''
-#     fname=main_dir+'Om0.3_Sg{0}_H70.0.npy'.format(name)
-#     flist=glob.glob(fname)
     
     flist=[fname]
     print(flist)
@@ -177,39 +167,35 @@ if __name__=="__main__":
     idx_lst=np.arange(start_i,end_i,1)
     num_imgs=end_i-start_i
     
-    with TaskManager(cpus_per_task=2,debug=True, use_all_cpus=True, comm=comm) as tm:
-        raise SystemExit
+#     with TaskManager(cpus_per_task=4,debug=True, use_all_cpus=True, comm=comm) as tm:
+    with TaskManager(cpus_per_task=2, use_all_cpus=True) as tm:
     
-#         a1=np.load(fname)
+        ### Load data and create Catalog
+        a1=np.load(fname)
 
-#         if len(a1.shape)==4:
-#             a1=a1[:,0,:,:]
+        if len(a1.shape)==4:
+            a1=a1[:,0,:,:]
+        elif len(a1.shape)==5:
+            a1=a1[:,0,:,:,:]
+        else: 
+            print(a1.shape)
+            raise SystemError
 
-#         elif len(a1.shape)==5:
-#             a1=a1[:,0,:,:,:]
-#         else: 
-#             print(a1.shape)
-#             raise SystemError
+        print('Shape of input image file',a1.shape)
+        if args.invtf:
+            print('Invtransform:',args.invtf)
+            a1=f_invtransform(a1) # Generated images need to be inv transformed
+        assert np.max(a1)>100, "%s\t. Incorrect scaling for images. Need to apply inv_transform"%(np.max(a1))
 
-#         print('Shape of input image file',a1.shape)
-#         if args.invtf:
-#             print('Invtransform:',args.invtf)
-#             a1=f_invtransform(a1) # Generated images need to be inv transformed
-#         assert np.max(a1)>100, "%s\t. Incorrect scaling for images. Need to apply inv_transform"%(np.max(a1))
-
-#     #         for count in tm.iterate(range(num_imgs)):
+        
+        for count in tm.iterate(range(num_imgs)):
 #         for count in range(num_imgs):
-#             print(count)
-#             f_write_corr(count,a1,num_corrs,slice_idx=img_size,data_dir=data_dir,suffix=name_suffix)
+            print(count)
+            f_write_corr(count,a1,num_corrs,slice_idx=img_size,data_dir=data_dir,suffix=name_suffix)
 
     ## Combine files for same input file
     a1=f_concat_temp_files(num_imgs,data_dir,'img',name_suffix)
     fname=data_dir+'3pt_corr_{0}_{1}.npy'.format(count,name_suffix)
     np.save(fname,a1)
 
-        
-#     with TaskManager(cpus_per_task=2,use_all_cpus=True) as tm:
-#         print("hello")
-            
-#         for bias in tm.iterate(biases):
             
