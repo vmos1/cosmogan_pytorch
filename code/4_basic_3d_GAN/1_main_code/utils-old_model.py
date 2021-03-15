@@ -41,27 +41,26 @@ class Generator(nn.Module):
         ## Define new variables from dict
         keys=['ngpu','nz','nc','ngf','kernel_size','stride','g_padding']
         ngpu, nz,nc,ngf,kernel_size,stride,g_padding=list(collections.OrderedDict({key:gdict[key] for key in keys}).values())
-        kernel_size=2;g_padding=0;stride=2;
-        
+
         self.main = nn.Sequential(
             # nn.ConvTranspose3d(in_channels, out_channels, kernel_size,stride,padding,output_padding,groups,bias, Dilation,padding_mode)
             nn.Linear(nz,nc*ngf*8**3),# 262144
             nn.BatchNorm3d(nc,eps=1e-05, momentum=0.9, affine=True),
             nn.ReLU(inplace=True),
             View(shape=[-1,ngf*8,4,4,4]),
-            nn.ConvTranspose3d(ngf * 8, ngf * 4, kernel_size, stride, g_padding, output_padding=0, bias=False),
+            nn.ConvTranspose3d(ngf * 8, ngf * 4, kernel_size, stride, g_padding, output_padding=1, bias=False),
             nn.BatchNorm3d(ngf*4,eps=1e-05, momentum=0.9, affine=True),
             nn.ReLU(inplace=True),
             # state size. (ngf*4) x 8 x 8
-            nn.ConvTranspose3d( ngf * 4, ngf * 2, kernel_size, stride, g_padding, 0, bias=False),
+            nn.ConvTranspose3d( ngf * 4, ngf * 2, kernel_size, stride, g_padding, 1, bias=False),
             nn.BatchNorm3d(ngf*2,eps=1e-05, momentum=0.9, affine=True),
             nn.ReLU(inplace=True),
             # state size. (ngf*2) x 16 x 16
-            nn.ConvTranspose3d( ngf * 2, ngf, kernel_size, stride, g_padding, 0, bias=False),
+            nn.ConvTranspose3d( ngf * 2, ngf, kernel_size, stride, g_padding, 1, bias=False),
             nn.BatchNorm3d(ngf,eps=1e-05, momentum=0.9, affine=True),
             nn.ReLU(inplace=True),
             # state size. (ngf) x 32 x 32
-            nn.ConvTranspose3d( ngf, nc, kernel_size, stride,g_padding, 0, bias=False),
+            nn.ConvTranspose3d( ngf, nc, kernel_size, stride,g_padding, 1, bias=False),
             nn.Tanh()
         )
     
@@ -75,7 +74,6 @@ class Discriminator(nn.Module):
         ## Define new variables from dict
         keys=['ngpu','nz','nc','ndf','kernel_size','stride','d_padding']
         ngpu, nz,nc,ndf,kernel_size,stride,d_padding=list(collections.OrderedDict({key:gdict[key] for key in keys}).values())        
-        kernel_size=2;d_padding=0;stride=2;
 
         self.main = nn.Sequential(
             # input is (nc) x 64 x 64

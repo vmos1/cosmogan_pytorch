@@ -8,6 +8,7 @@
 import numpy as np
 import pandas as pd
 import argparse
+from scipy.stats import entropy
 
 import subprocess as sp
 import os
