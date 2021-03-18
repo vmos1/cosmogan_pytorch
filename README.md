@@ -21,4 +21,4 @@ The Table below describes the content of various folders in this repository.
 
 Each folder contains a jupyter notebook to quickly test the code, a folder with the full code, a launch script to run the code on cori GPUs at NERSC and a folder with analysis codes to inspect the performance of the code. Below is an example for 2D GANs
 
-- [a relative link](https://github.com/vmos1/cosmogan_pytorch/blob/master/code/1_basic_GAN/cosmogan_train.ipynb) : Jupyter notebook to test GAN
+- [1_basic_GAN/cosmogan_train.ipynb](https://github.com/vmos1/cosmogan_pytorch/blob/master/code/1_basic_GAN/cosmogan_train.ipynb) : Jupyter notebook to test GAN
