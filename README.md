@@ -6,16 +6,23 @@ The aim is to build conditional GANs to produce images for different classes cor
 
 **3D GAN results** 
 We develop a simple GAN trained on 3D images of size 64^3.
+
 3D GAN: Pixel intensity | 3D GAN: Power spectrum |
 :-------------:|:---------------:
 ![Pixel intensity](https://github.com/vmos1/cosmogan_pytorch/blob/master/images/3d_hist_best.png)| ![Power spectrum](https://github.com/vmos1/cosmogan_pytorch/blob/master/images/3d_spec_best.png)
+
+Below are 2D snapshots of a set of 3D images. The input images are to the left and the GAN generated images are to the right.
+3D GAN: Input images | 3D GAN: Generated images |
+:-------------:|:---------------:
+![2D slices of input images](https://github.com/vmos1/cosmogan_pytorch/blob/master/images/3d_reference.png)| ![2D slices of generated images](https://github.com/vmos1/cosmogan_pytorch/blob/master/images/3d_generated.png)
+
 
 **2D conditional GAN results**
 We develop a conditional GAN trained on 2D images of size $128^2$ for 3 different values of the cosmological paramter sigma.
 2D cGAN: Pixel intensity | 2D cGAN: Power spectrum |
 :-------------:|:---------------:
-![Pixel intensity](https://github.com/vmos1/cosmogan_pytorch/blob/master/images/2d_cgan_hist_best.png)
-![Power spectrum](https://github.com/vmos1/cosmogan_pytorch/blob/master/images/2d_cgan_spec_best.png)
+![Pixel intensity](https://github.com/vmos1/cosmogan_pytorch/blob/master/images/2d_cgan_hist_best.png) |![Power spectrum](https://github.com/vmos1/cosmogan_pytorch/blob/master/images/2d_cgan_spec_best.png)
+
 # Repository information
 There separate directories to run GAN and cGAN in for both 2D and 3D datasets.
 The Table below describes the content of various folders in this repository.
