@@ -5,8 +5,12 @@ The aim is to build conditional GANs to produce images for different classes cor
 # Plots
 
 ** 3D GAN results ** 
-![Pixel intensity](https://github.com/vmos1/cosmogan_pytorch/blob/master/images/3d_hist_best.png?raw=true "Pixel intensity metric")
+![Pixel intensity](https://github.com/vmos1/cosmogan_pytorch/blob/master/images/3d_hist_best.png)
+![Power spectrum](https://github.com/vmos1/cosmogan_pytorch/blob/master/images/3d_spec_best.png)
 
+** 2D conditional GAN results**
+![Pixel intensity](https://github.com/vmos1/cosmogan_pytorch/blob/master/images/2d_cgan_hist_best.png)
+![Power spectrum](https://github.com/vmos1/cosmogan_pytorch/blob/master/images/2d_cgan_spec_best.png)
 # Repository information
 There separate directories to run GAN and cGAN in for both 2D and 3D datasets.
 The Table below describes the content of various folders in this repository.
