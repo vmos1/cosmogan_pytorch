@@ -5,7 +5,7 @@ The aim is to build conditional GANs to produce images for different classes cor
 # Plots
 
 ** 3D GAN results ** 
-Solarized dark | Solarized Ocean |
+Pixel intensity | Power spectrum |
 :-------------:|:---------------:
 ![Pixel intensity](https://github.com/vmos1/cosmogan_pytorch/blob/master/images/3d_hist_best.png)| ![Power spectrum](https://github.com/vmos1/cosmogan_pytorch/blob/master/images/3d_spec_best.png)
 
