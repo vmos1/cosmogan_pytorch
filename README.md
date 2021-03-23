@@ -1,15 +1,19 @@
 # Introduction
-This repository contains code to implement Generative Adversarial Neural networks to produce images of matter distribution in the universe for different sets of cosmological parameters. Dataset consisits of N-body cosmology simulation maps obtained from PyCOLA.
+This repository contains code to implement Generative Adversarial Neural networks to produce images of matter distribution in the universe for different sets of cosmological parameters. Dataset consisits of N-body cosmology simulation maps obtained from PyCOLA. The pixel values represent matter density.
 
 The aim is to build conditional GANs to produce images for different classes corresponding to different sets of cosmological parameters.
 # Plots
 
-** 3D GAN results ** 
-Pixel intensity | Power spectrum |
+**3D GAN results** 
+We develop a simple GAN trained on 3D images of size 64^3.
+3D GAN: Pixel intensity | 3D GAN: Power spectrum |
 :-------------:|:---------------:
 ![Pixel intensity](https://github.com/vmos1/cosmogan_pytorch/blob/master/images/3d_hist_best.png)| ![Power spectrum](https://github.com/vmos1/cosmogan_pytorch/blob/master/images/3d_spec_best.png)
 
-** 2D conditional GAN results**
+**2D conditional GAN results**
+We develop a conditional GAN trained on 2D images of size $128^2$ for 3 different values of the cosmological paramter sigma.
+2D cGAN: Pixel intensity | 2D cGAN: Power spectrum |
+:-------------:|:---------------:
 ![Pixel intensity](https://github.com/vmos1/cosmogan_pytorch/blob/master/images/2d_cgan_hist_best.png)
 ![Power spectrum](https://github.com/vmos1/cosmogan_pytorch/blob/master/images/2d_cgan_spec_best.png)
 # Repository information
