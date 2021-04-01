@@ -21,16 +21,16 @@ import torch.nn.parallel
 import torch.backends.cudnn as cudnn
 import torch.optim as optim
 import torch.utils.data
-from torchsummary import summary
+# from torchsummary import summary
 from torch.utils.data import DataLoader, TensorDataset
 import torch.distributed as dist
-import socket
+from torch.nn.parallel import DistributedDataParallel
 
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
-from IPython.display import HTML
+# from IPython.display import HTML
 
 import argparse
 import time
@@ -39,13 +39,14 @@ import glob
 import pickle
 import yaml
 import collections
+import socket
 
 # Import modules from other files
 from utils import *
 from spec_loss import *
 
 
-def try_barrier():
+def try_barrier(rank):
     """Attempt a barrier but ignore any exceptions"""
     print('BAR %d'%rank)
 
@@ -54,22 +55,12 @@ def try_barrier():
     except:
         pass
 
-def _get_sync_file():
-    """Logic for naming sync file using slurm env variables"""
-    #sync_file_dir = '%s/pytorch-sync-files' % os.environ['SCRATCH']
-    sync_file_dir = '/global/homes/b/balewski/prjs/tmp/local-sync-files'
-    os.makedirs(sync_file_dir, exist_ok=True)
-    sync_file = 'file://%s/pytorch_sync.%s.%s' % (
-        sync_file_dir, os.environ['SLURM_JOB_ID'], os.environ['SLURM_STEP_ID'])
-    return sync_file
-
-
 def f_parse_args():
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(description="Run script to train GAN using LBANN", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     add_arg = parser.add_argument
     
-    add_arg('--epochs','-e', type=int, default=10, help='The number of epochs')
+    add_arg('--epochs','-e', type=int, default=5, help='The number of epochs')
     add_arg('--ngpu','-ngpu',  type=int, default=1, help='The number of GPUs per node to use')
     add_arg('--mode','-m',  type=str, choices=['fresh','continue'],default='fresh', help='Whether to start fresh run or continue previous run')
     add_arg('--ip_fldr','-ip',  type=str, default='', help='The input folder for resuming a checkpointed run')
@@ -82,6 +73,8 @@ def f_parse_args():
     add_arg('--specloss','-spl',dest='spec_loss_flag',action='store_true', help='Whether to use spectral loss')
     add_arg('--deterministic','-dt',action='store_true', help='Run with deterministic sequence')
     add_arg('--lst','-l', dest='save_steps_list', nargs='*', type = int, default=[], help='List of step values to save model. Usually used for re-run with deterministic')
+    add_arg("--local_rank", default=0, type=int)
+
 
     return parser.parse_args()
 
@@ -93,7 +86,7 @@ def f_init_gdict(gdict,config_dict):
     for key in keys2: gdict[key]=config_dict['data'][key]
         
 
-def f_train_loop(dataloader,metrics_df,gdict):
+def f_train_loop(dataloader,metrics_df,gdict,gpu):
     ''' Train single epoch '''
     
     ## Define new variables from dict
@@ -126,13 +119,13 @@ def f_train_loop(dataloader,metrics_df,gdict):
 
             # Forward pass real batch through D
             output = netD(real_cpu).view(-1)
-            errD_real = criterion(output, real_label)
+            errD_real = criterion(output, real_label.float())
             errD_real.backward()
             D_x = output.mean().item()
 
             # Forward pass real batch through D
             output = netD(fake.detach()).view(-1)
-            errD_fake = criterion(output, fake_label)
+            errD_fake = criterion(output, fake_label.float())
             errD_fake.backward()
             D_G_z1 = output.mean().item()
             errD = errD_real + errD_fake
@@ -141,7 +134,7 @@ def f_train_loop(dataloader,metrics_df,gdict):
             ###Update G network: maximize log(D(G(z)))
             netG.zero_grad()
             output = netD(fake).view(-1)
-            errG_adv = criterion(output, g_label)
+            errG_adv = criterion(output, g_label.float())
             # Histogram pixel intensity loss
             hist_gen=f_compute_hist(fake,bins=bns)
             hist_loss=loss_hist(hist_gen,hist_val.to(device))
@@ -166,7 +159,7 @@ def f_train_loop(dataloader,metrics_df,gdict):
 
             ####### Store metrics ########
             # Output training stats
-            if count % gdict['checkpoint_size'] == 0:
+            if ((count % gdict['checkpoint_size'] == 0) & (gpu==0)):
                 logging.info('[%d/%d][%d/%d]\tLoss_D: %.4f\tLoss_adv: %.4f\tLoss_G: %.4f\tD(x): %.4f\tD(G(z)): %.4f / %.4f'
                       % (epoch, epochs, count, len(dataloader), errD.item(), errG_adv.item(),errG.item(), D_x, D_G_z1, D_G_z2)),
                 logging.info("Spec loss: %s,\t hist loss: %s"%(spec_loss.item(),hist_loss.item())),
@@ -193,11 +186,11 @@ def f_train_loop(dataloader,metrics_df,gdict):
             # Storing chi for next step
             for col,val in zip(['spec_chi','hist_chi'],[spec_chi.item(),hist_chi.item()]):  metrics_df.loc[iters,col]=val            
 
-            # Checkpoint model for continuing run
-            if count == len(dataloader)-1: ## Check point at last step of epoch
-                f_save_checkpoint(gdict,epoch,iters,best_chi1,best_chi2,netG,netD,optimizerG,optimizerD,save_loc=save_dir+'/models/checkpoint_last.tar')  
+#             # Checkpoint model for continuing run
+#             if count == len(dataloader)-1: ## Check point at last step of epoch
+#                 f_save_checkpoint(gdict,epoch,iters,best_chi1,best_chi2,netG,netD,optimizerG,optimizerD,save_loc=save_dir+'/models/checkpoint_last.tar')  
 
-            if (checkpoint and (epoch > 1)): # Choose best models by metric
+            if (checkpoint and (epoch > 1) and (gpu==1)): # Choose best models by metric
                 if hist_chi< best_chi1:
                     f_save_checkpoint(gdict,epoch,iters,best_chi1,best_chi2,netG,netD,optimizerG,optimizerD,save_loc=save_dir+'/models/checkpoint_best_hist.tar')
                     best_chi1=hist_chi.item()
@@ -213,7 +206,7 @@ def f_train_loop(dataloader,metrics_df,gdict):
                     logging.info("Saving given-step at epoch %s, step %s."%(epoch,iters))
                     
             # Save G's output on fixed_noise
-            if ((iters % gdict['checkpoint_size'] == 0) or ((epoch == epochs-1) and (count == len(dataloader)-1))):
+            if ((iters % gdict['checkpoint_size'] == 0) or ((epoch == epochs-1) and (count == len(dataloader)-1) and (gpu==1))):
                 netG.eval()
                 with torch.no_grad():
                     fake = netG(fixed_noise).detach().cpu()
@@ -222,71 +215,51 @@ def f_train_loop(dataloader,metrics_df,gdict):
                     np.save(save_dir+'/images/'+fname,img_arr)
         
         t_epoch_end=time.time()
-        logging.info("Time taken for epoch %s: %s"%(epoch,t_epoch_end-t_epoch_start))
+        logging.info("Time taken for epoch %s: %s. gpu %s"%(epoch,t_epoch_end-t_epoch_start,gpu))
+        
         # Save Metrics to file after each epoch
         metrics_df.to_pickle(save_dir+'/df_metrics.pkle')
         
     logging.info("best chis: {0}, {1}".format(best_chi1,best_chi2))
     
+    
+def f_sample_data(ip_tensor,rank=0,num_ranks=1):
+    
+    data_size=ip_tensor.shape[0]
+    size=data_size//num_ranks
+    print("Using data indices %s-%s for rank %s"%(rank*(size),(rank+1)*size,rank))
+    dataset=TensorDataset(ip_tensor[rank*(size):(rank+1)*size])
+    data_loader=DataLoader(dataset,batch_size=gdict['batchsize'],shuffle=True,num_workers=0,drop_last=True)
+    return data_loader
+
 #########################
 ### Main code #######
 #########################
 
 if __name__=="__main__":
     
-    device='cuda'
-
-    if device=='cuda':
-        rank = int(os.environ['SLURM_PROCID'])
-        world_size = int(os.environ['SLURM_NTASKS'])
-        locRank=int(os.environ['SLURM_LOCALID'])
-    else:
-        rank=0;  world_size = 1; locRank=0 
-
-    host=socket.gethostname()
-    verb=rank==0
-    print('M:myRank=',rank,'world_size =',world_size,'verb=',verb,host,'locRank=',locRank )
-    masterIP=os.getenv('MASTER_ADDR')
-    if masterIP==None:
-        assert device=='cuda'  # must speciffy MASTER_ADDR
-        sync_file = _get_sync_file()
-        if verb: print('use sync_file =',sync_file)
-    else:
-        sync_file='env://'
-        masterPort=os.getenv('MASTER_PORT')
-        if verb: print('use masterIP',masterIP,masterPort)
-        assert masterPort!=None
-
-    if verb:
-        print('imported PyTorch ver:',torch.__version__)
-
-    dist.init_process_group(backend='nccl', init_method=sync_file, world_size=world_size, rank=rank)
-    print("M:after dist.init_process_group")
-
-    inp_dim=280
-    fc_dim=20
-    out_dim=10
-
-    epochs=15
-    batch_size=16*1024//world_size  # local batch size
-    steps=16
-    num_eve=steps*batch_size
-    learning_rate = 0.02
-
-    num_cpus=5 # to load the data in parallel , -c10 locks 5 phys cores
-
-    # Initialize model 
-    torch.manual_seed(0)
-
-    raise SystemExit
-    
-    
-    
-    
-    
-    
+    parser=argparse.ArgumentParser()
+    parser.add_argument("--local_rank", default=0, type=int)
+    args=parser.parse_args()
+#     args=f_parse_args()
 
     torch.backends.cudnn.benchmark=True
+
+    ### Distributed data-parallel setup
+    local_rank=args.local_rank    
+    verb=True if local_rank==0 else False
+    
+    print("GPUs detected",torch.cuda.device_count())
+    torch.cuda.set_device(args.local_rank) ## Very important
+    dist.init_process_group(backend='nccl', init_method="env://")  
+    world_rank = dist.get_rank()
+
+    world_size=int(os.environ['WORLD_SIZE'])
+    print("World size %s, world rank %s, local rank %s"%(world_size,world_rank,local_rank))
+    
+    device = torch.cuda.current_device()
+    print("device %s local-rank %s"%(device,local_rank))
+        
 #     torch.autograd.set_detect_anomaly(True)
 
     t0=time.time()
@@ -294,24 +267,10 @@ if __name__=="__main__":
     args=f_parse_args()
 
     ### Set up ###
-    config_file=args.config
+#     config_file=args.config
+    config_file='/global/u1/v/vpa/project/jpt_notebooks/Cosmology/Cosmo_GAN/repositories/cosmogan_pytorch/code/1_basic_GAN/1_main_code/config_128.yaml'
     config_dict=f_load_config(config_file)
 
-    
-    ### Dist dataparallel
-    
-    
-    if device=='cuda':
-        rank = int(os.environ['SLURM_PROCID'])
-        world_size = int(os.environ['SLURM_NTASKS'])
-        locRank=int(os.environ['SLURM_LOCALID'])
-    else:
-        rank=0;  world_size = 1; locRank=0 
-    
-    
-    dist.init_process_group(backend='nccl', init_method=sync_file, world_size=world_size, rank=rank)
-    print("M:after dist.init_process_group")
-    
     # Initilize variables    
     gdict={}
     f_init_gdict(gdict,config_dict)
@@ -325,16 +284,18 @@ if __name__=="__main__":
         # Create prefix for foldername        
         fldr_name=datetime.now().strftime('%Y%m%d_%H%M%S') ## time format
         gdict['save_dir']=gdict['op_loc']+fldr_name+'_'+args.run_suffix
-        
-        if not os.path.exists(gdict['save_dir']):
-            os.makedirs(gdict['save_dir']+'/models')
-            os.makedirs(gdict['save_dir']+'/images')
+        if local_rank==0:
+            if not os.path.exists(gdict['save_dir']):
+                os.makedirs(gdict['save_dir']+'/models')
+                os.makedirs(gdict['save_dir']+'/images')
         
     elif gdict['mode']=='continue': ## For checkpointed runs
         gdict['save_dir']=args.ip_fldr
         ### Read loss data
         with open (gdict['save_dir']+'df_metrics.pkle','rb') as f:
             metrics_dict=pickle.load(f) 
+
+    try_barrier(local_rank)
 
     ### Write all logging.info statements to stdout and log file (different for jpt notebooks)
     logfile=gdict['save_dir']+'/log.log'
@@ -356,7 +317,8 @@ if __name__=="__main__":
     gdict['bns']=50
     gdict['device']=torch.device("cuda" if (torch.cuda.is_available() and gdict['ngpu'] > 0) else "cpu")
     gdict['ngpu']=torch.cuda.device_count()
-    
+    gdict['num_imgs']=400
+
     gdict['multi-gpu']=True if (gdict['device'].type == 'cuda') and (gdict['ngpu'] > 1) else False 
     logging.info(gdict)
     
@@ -378,16 +340,21 @@ if __name__=="__main__":
     
     #################################
     ####### Read data and precompute ######
-    img=np.load(gdict['ip_fname'],mmap_mode='r')[:gdict['num_imgs']].transpose(0,1,2,3)
+    img=np.load(gdict['ip_fname'],mmap_mode='r')[:gdict['num_imgs']].transpose(0,1,2,3).copy()
     t_img=torch.from_numpy(img)
     logging.info("%s, %s"%(img.shape,t_img.shape))
 
-    dataset=TensorDataset(t_img)
-    dataloader=DataLoader(dataset,batch_size=gdict['batchsize'],shuffle=True,num_workers=0,drop_last=True)
+#     dataset=TensorDataset(t_img)
+#     dataloader=DataLoader(dataset,batch_size=gdict['batchsize'],shuffle=True,num_workers=0,drop_last=True)
 
+#     train_sampler = torch.utils.data.distributed.DistributedSampler(dataset,num_replicas=world_size)
+#     dataloader = DataLoader(dataset,batch_size=gdict['batchsize'],num_workers=0,drop_last=True,sampler=train_sampler,shuffle=False)
+
+    dataloader=f_sample_data(t_img,world_rank,world_size)
+    print("Size of dataset for GPU %s : %s"%(local_rank,len(dataloader.dataset)))
     # Precompute metrics with validation data for computing losses
     with torch.no_grad():
-        val_img=np.load(gdict['ip_fname'])[-3000:].transpose(0,1,2,3)
+        val_img=np.load(gdict['ip_fname'])[-3000:].transpose(0,1,2,3).copy()
         t_val_img=torch.from_numpy(val_img).to(gdict['device'])
 
         # Precompute radial coordinates
@@ -400,24 +367,37 @@ if __name__=="__main__":
 
     #################################
     ###### Build Networks ###
+    
+    device = torch.cuda.current_device()
+    print("device %s local-rank %s"%(device,local_rank))
     # Define Models
     logging.info("Building GAN networks")
     # Create Generator
-    netG = Generator(gdict).to(gdict['device'])
+    netG = Generator(gdict).to(device)
     netG.apply(weights_init)
 #     logging.info(netG)
-    summary(netG,(1,1,64))
+#     summary(netG,(1,1,64))
     # Create Discriminator
-    netD = Discriminator(gdict).to(gdict['device'])
+    netD = Discriminator(gdict).to(device)
     netD.apply(weights_init)
 #     logging.info(netD)
-    summary(netD,(1,128,128))
+#     summary(netD,(1,128,128))
     
     logging.info("Number of GPUs used %s"%(gdict['ngpu']))
+    
+#     try_barrier(local_rank)
+    print("networks built",local_rank)
+    print("barrier %s %s"%(local_rank,device))
+    
     if (gdict['multi-gpu']):
-        netG = nn.DataParallel(netG, list(range(gdict['ngpu'])))
-        netD = nn.DataParallel(netD, list(range(gdict['ngpu'])))
+#         netG = nn.DataParallel(netG, list(range(gdict['ngpu'])))
+#         netD = nn.DataParallel(netD, list(range(gdict['ngpu'])))
  
+        netG=DistributedDataParallel(netG,device_ids=[local_rank],output_device=[local_rank])
+        netD=DistributedDataParallel(netD,device_ids=[local_rank],output_device=[local_rank])
+    
+    try_barrier(local_rank)
+    print("After DDP",local_rank)
     #### Initialize networks ####
     # criterion = nn.BCELoss()
     criterion = nn.BCEWithLogitsLoss()
@@ -427,7 +407,7 @@ if __name__=="__main__":
         optimizerG = optim.Adam(netG.parameters(), lr=gdict['learn_rate'], betas=(gdict['beta1'], 0.999),eps=1e-7)
         ### Initialize variables      
         iters,start_epoch,best_chi1,best_chi2=0,0,1e10,1e10    
-    
+
     ### Load network weights for continuing run
     elif gdict['mode']=='continue':
         iters,start_epoch,best_chi1,best_chi2=f_load_checkpoint(gdict['save_dir']+'/models/checkpoint_last.tar',netG,netD,optimizerG,optimizerD,gdict) 
@@ -449,15 +429,21 @@ if __name__=="__main__":
     #################################
     ########## Train loop and save metrics and images ######
     logging.info("Starting Training Loop...")
-    f_train_loop(dataloader,metrics_df,gdict)
+    f_train_loop(dataloader,metrics_df,gdict,local_rank)
     
-    ## Generate images for best saved models ######
-    op_loc=gdict['save_dir']+'/images/'
-    ip_fname=gdict['save_dir']+'/models/checkpoint_best_spec.tar'
-    f_gen_images(gdict,netG,optimizerG,ip_fname,op_loc,op_strg='best_spec',op_size=2000)
+    try_barrier(local_rank)
+
+    if world_rank==1:
+        ## Generate images for best saved models ######
+        op_loc=gdict['save_dir']+'/images/'
+        ip_fname=gdict['save_dir']+'/models/checkpoint_best_spec.tar'
+        f_gen_images(gdict,netG,optimizerG,ip_fname,op_loc,op_strg='best_spec',op_size=500)
+        
+        ip_fname=gdict['save_dir']+'/models/checkpoint_best_hist.tar'
+        f_gen_images(gdict,netG,optimizerG,ip_fname,op_loc,op_strg='best_hist',op_size=500)
+        print("after hist",world_rank)
     
-    ip_fname=gdict['save_dir']+'/models/checkpoint_best_hist.tar'
-    f_gen_images(gdict,netG,optimizerG,ip_fname,op_loc,op_strg='best_hist',op_size=2000)
+    try_barrier(local_rank)
     
     tf=time.time()
     logging.info("Total time %s"%(tf-t0))
