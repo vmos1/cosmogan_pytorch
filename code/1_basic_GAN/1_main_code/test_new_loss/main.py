@@ -29,7 +29,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
-from IPython.display import HTML
+#from IPython.display import HTML
 
 import argparse
 import time
@@ -261,7 +261,7 @@ def f_train_loop(dataloader,metrics_df,gdict,fixed_noise,mean_spec_val,sdev_spec
 
             if gdict['lambda_gp']: ## Add gradient - penalty loss
                 gp_loss=f_gp_loss(grads,gdict['lambda_gp'])
-                errD +=gp_loss
+                errD =errD + gp_loss
             else:
                 gp_loss=torch.Tensor([np.nan])
 
@@ -282,7 +282,7 @@ def f_train_loop(dataloader,metrics_df,gdict,fixed_noise,mean_spec_val,sdev_spec
             if gdict['lambda_spec_mean']: errG+=spec_loss 
             if gdict['lambda_fm']:## Add feature matching loss
                 fm_loss=f_FM_loss(real_output,fake_output,gdict['lambda_fm'],gdict)
-                errG+= fm_loss
+                errG=errG + fm_loss
             else: 
                 fm_loss=torch.Tensor([np.nan])
 
