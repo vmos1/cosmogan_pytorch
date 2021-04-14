@@ -17,23 +17,23 @@ parameters:
     g_padding: 2
     d_padding: 2
     flip_prob: 0.01
+    bns: 50
 
     checkpoint_size: 10
-
-    batch_size: 128
+    
+    batch_size: 32
     epochs: 20
     learn_rate: 0.0002
-    bns: 50
     
     deterministic: False
-    distributed: False
+    distributed: True
     seed: 234373
     lambda_spec_mean: 1.0
     lambda_spec_var: 1.0
     lambda_fm: 0.0 ## Enter False or float
     lambda_gp: 0.0 ## Enter False or float
-    grad_clip: 1.0
+    grad_clip: 0.0
     save_steps_list: [5,10]
     run_suffix: train
 
-    description: '2d GAN: new loss'
+    description: '2d GAN: DDP with new loss'

@@ -12,6 +12,7 @@ def f_transform(x):
 def f_invtransform(s):
     return 4.*(1. + s)/(1. - s)
 
+
 # custom weights initialization called on netG and netD
 def weights_init(m):
     classname = m.__class__.__name__
@@ -20,7 +21,9 @@ def weights_init(m):
     elif classname.find('BatchNorm') != -1:
         nn.init.normal_(m.weight.data, 1.0, 0.02)
         nn.init.constant_(m.bias.data, 0)
-
+#     elif classname.find('Linear') != -1:
+#         nn.init.normal_(m.weight.data, 1.0, 0.02)
+        
 # Generator Code
 class View(nn.Module):
     def __init__(self, shape):
@@ -125,7 +128,7 @@ def f_gen_images(gdict,netG,optimizerG,ip_fname,op_loc,op_strg='inf_img_',op_siz
 
     nz,device=gdict['nz'],gdict['device']
 
-    try:
+    try:# handling cpu vs gpu
         if torch.cuda.is_available(): checkpoint=torch.load(ip_fname)
         else: checkpoint=torch.load(ip_fname,map_location=torch.device('cpu'))
     except Exception as e:
@@ -148,12 +151,12 @@ def f_gen_images(gdict,netG,optimizerG,ip_fname,op_loc,op_strg='inf_img_',op_siz
     noise = torch.randn(op_size, 1, 1, nz, device=device)
     # Generate fake image batch with G
     netG.eval() ## This is required before running inference
-    gen = netG(noise)
-    gen_images=gen.detach().cpu().numpy()[:,:,:,:]
-    print(gen_images.shape)
+    with torch.no_grad(): ## This is important. fails without it for multi-gpu
+        gen = netG(noise)
+        gen_images=gen.detach().cpu().numpy()[:,:,:,:]
+        print(gen_images.shape)
     
     op_fname='%s_epoch-%s_step-%s.npy'%(op_strg,epoch,iters)
-
     np.save(op_loc+op_fname,gen_images)
 
     print("Image saved in ",op_fname)
@@ -201,5 +204,4 @@ def f_load_checkpoint(ip_fname,netG,netD,optimizerG,optimizerD,gdict):
     netD.train()
     
     return iters,epoch,best_chi1,best_chi2
-
 

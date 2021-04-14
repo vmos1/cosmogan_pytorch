@@ -1,7 +1,7 @@
 
 import numpy as np
 import torch
-# import torch.fft
+import torch.fft
 
 
 ############
@@ -60,7 +60,6 @@ def f_image_spectrum(x,num_channels):
     mean=np.array(mean)
     sdev=np.array(sdev)
     return mean,sdev
-
 
 ####################
 ### Pytorch code ###
@@ -203,36 +202,19 @@ def f_torch_fftshift(real, imag):
         imag = torch.roll(imag, dims=dim, shifts=imag.size(dim)//2)
     return real, imag
 
-
 def f_torch_compute_spectrum(arr,r,ind):
     
     GLOBAL_MEAN=1.0
     arr=(arr-GLOBAL_MEAN)/(GLOBAL_MEAN)
-    y1=torch.rfft(arr,signal_ndim=2,onesided=False)
-    real,imag=f_torch_fftshift(y1[:,:,0],y1[:,:,1])    ## last index is real/imag part
+    
+    y1=torch.fft.fftn(arr,dim=(-2,-1))
+    real,imag=f_torch_fftshift(y1.real,y1.imag) 
+    
     y2=real**2+imag**2     ## Absolute value of each complex number
     
-#     print(y2.shape)
     z1=f_torch_get_azimuthalAverage(y2,r,ind)     ## Compute radial profile
     
     return z1
-
-## Method for pytorch 1.8 
-# import torch.fft
-# def f_torch_compute_spectrum(arr,r,ind):
-    
-#     GLOBAL_MEAN=1.0
-#     arr=(arr-GLOBAL_MEAN)/(GLOBAL_MEAN)
-
-#     y1=torch.fft.fftn(arr,dim=(-2,-1))
-#     real,imag=f_torch_fftshift(y1.real,y1.imag)
-    
-#     y2=real**2+imag**2     ## Absolute value of each complex number
-    
-# #     print(y2.shape)
-#     z1=f_torch_get_azimuthalAverage(y2,r,ind)     ## Compute radial profile
-    
-#     return z1
 
 def f_torch_compute_batch_spectrum(arr,r,ind):
     
@@ -273,7 +255,7 @@ def f_compute_hist(data,bins):
     return hist_data
 
 ### Losses 
-def loss_spectrum(spec_mean,spec_mean_ref,spec_std,spec_std_ref,image_size,lambda_spec_mean,lambda_spec_var):
+def loss_spectrum(spec_mean,spec_mean_ref,spec_std,spec_std_ref,image_size,lambda1):
     ''' Loss function for the spectrum : mean + variance 
     Log(sum( batch value - expect value) ^ 2 )) '''
     
@@ -283,8 +265,8 @@ def loss_spectrum(spec_mean,spec_mean_ref,spec_std,spec_std_ref,image_size,lambd
     spec_mean=torch.log(torch.mean(torch.pow(spec_mean[:,:idx]-spec_mean_ref[:,:idx],2)))
     spec_sdev=torch.log(torch.mean(torch.pow(spec_std[:,:idx]-spec_std_ref[:,:idx],2)))
     
-    lambda1=lambda_spec_mean;
-    lambda2=lambda_spec_var;
+    lambda1=lambda1;
+    lambda2=lambda1;
     ans=lambda1*spec_mean+lambda2*spec_sdev
     
     if torch.isnan(spec_sdev).any():    print("spec loss with nan",ans)
@@ -296,20 +278,3 @@ def loss_hist(hist_sample,hist_ref):
     lambda1=1.0
     return lambda1*torch.log(torch.mean(torch.pow(hist_sample-hist_ref,2)))
 
-def f_FM_loss(real_output,fake_output,lambda_fm,gdict):
-    '''
-    Module to implement Feature-Matching loss. Reads all but last elements of Discriminator ouput
-    '''
-    FM=torch.Tensor([0.0]).to(gdict['device'])
-    for i,j in zip(real_output[:-1][0],fake_output[:-1][0]):
-        real_mean=torch.mean(i)
-        fake_mean=torch.mean(j)
-        FM=FM.clone()+torch.sum(torch.square(real_mean-fake_mean))
-    return lambda_fm*FM
-
-def f_gp_loss(grads,l=1.0):
-    '''
-    Module to implement gradient penalty loss.
-    '''
-    loss=torch.mean(torch.sum(torch.square(grads),dim=[1,2,3]))
-    return l*loss

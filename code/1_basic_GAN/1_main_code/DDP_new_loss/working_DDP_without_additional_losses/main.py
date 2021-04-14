@@ -50,6 +50,7 @@ import shutil
 from utils import *
 from spec_loss import *
 
+
 ### Setup modules ###
 def f_manual_add_argparse():
     ''' use only in jpt notebook'''
@@ -100,7 +101,8 @@ def f_init_gdict(args,gdict):
     ## Add args variables to gdict
     for key in ['mode','config','ip_fldr']:
         gdict[key]=vars(args)[key]
-        
+    
+    if gdict['distributed']: assert not gdict['lambda_gp'],"GP couplings is %s. Cannot use Gradient penalty loss in pytorch DDP"%(gdict['lambda_gp'])
     return gdict
 
 def f_sample_data(ip_tensor,rank=0,num_ranks=1):
@@ -135,7 +137,7 @@ def f_load_data_precompute(gdict):
     
     # Precompute metrics with validation data for computing losses
     with torch.no_grad():
-        val_img=np.load(gdict['ip_fname'])[-30:].transpose(0,1,2,3).copy()
+        val_img=np.load(gdict['ip_fname'],mmap_mode='r')[-3000:].transpose(0,1,2,3).copy()
         t_val_img=torch.from_numpy(val_img).to(gdict['device'])
 
         # Precompute radial coordinates
@@ -201,41 +203,58 @@ def f_setup(gdict,log):
     '''
     
     torch.backends.cudnn.benchmark=True
-    torch.autograd.set_detect_anomaly(True)
+#     torch.autograd.set_detect_anomaly(True)
+
+
+    ## Special declarations
+    gdict['ngpu']=torch.cuda.device_count()
+    gdict['device']=torch.device("cuda" if (torch.cuda.is_available()) else "cpu")
+    gdict['multi-gpu']=True if (gdict['device'].type == 'cuda') and (gdict['ngpu'] > 1) else False 
+    
     ########################
     ###### Set up Distributed Data parallel ######
     if gdict['distributed']:
-        gdict['local_rank']=args.local_rank    
+        gdict['local_rank']=args.local_rank  
         gdict['world_size']=int(os.environ['WORLD_SIZE'])
         torch.cuda.set_device(args.local_rank) ## Very important
         dist.init_process_group(backend='nccl', init_method="env://")  
         gdict['world_rank']= dist.get_rank()
         
-        print("World size %s, world rank %s, local rank %s, hostname %s\n"%(gdict['world_size'],gdict['world_rank'],gdict['local_rank'],socket.gethostname()))
+        print("World size %s, world rank %s, local rank %s, hostname %s, GPUs on node %s\n"%(gdict['world_size'],gdict['world_rank'],gdict['local_rank'],socket.gethostname(),gdict['ngpu']))
         device = torch.cuda.current_device()
+        
+        # Divide batch size by number of GPUs
+#         gdict['batch_size']=gdict['batch_size']//gdict['world_size']
     else:
         gdict['world_size'],gdict['world_rank'],gdict['local_rank']=1,0,0
     
     ########################
     ###### Set up directories #######
     ### sync up so that time is the same for each GPU for DDP
-    if gdict['distributed']:  try_barrier(gdict['world_rank'])
     if gdict['mode']=='fresh':
-        # Create prefix for foldername        
-        fldr_name=datetime.now().strftime('%Y%m%d_%H%M%S') ## time format
-        gdict['save_dir']=gdict['op_loc']+fldr_name+'_'+gdict['run_suffix']
-        if gdict['world_rank']==0:
+        ### Create prefix for foldername            
+        if gdict['world_rank']==0: ### For rank=0, create directory name string and make directories
+            dt_strg=datetime.now().strftime('%Y%m%d_%H%M%S') ## time format
+            dt_lst=[int(i) for i in dt_strg.split('_')] # List storing day and time            
+            dt_tnsr=torch.Tensor(dt_lst).long().to(gdict['device'])  ## Create list to pass to other GPUs 
+        else: dt_tnsr=torch.Tensor([0,0]).long().to(gdict['device'])
+        ### Pass directory name to other ranks
+        dist.broadcast(dt_tnsr, src=0)
+
+        gdict['save_dir']=gdict['op_loc']+str(int(dt_tnsr[0]))+'_'+str(int(dt_tnsr[1]))+'_'+gdict['run_suffix']
+        
+        if gdict['world_rank']==0: # Create directories for rank 0
+            ### Create directories
             if not os.path.exists(gdict['save_dir']):
                 os.makedirs(gdict['save_dir']+'/models')
                 os.makedirs(gdict['save_dir']+'/images')
-                shutil.copy(gdict['config'],gdict['save_dir'])
-
+                shutil.copy(gdict['config'],gdict['save_dir'])            
     elif gdict['mode']=='continue': ## For checkpointed runs
         gdict['save_dir']=args.ip_fldr
         ### Read loss data
         with open (gdict['save_dir']+'df_metrics.pkle','rb') as f:
             metrics_dict=pickle.load(f)
-    
+   
     ########################
     ### Initialize random seed
     
@@ -251,13 +270,6 @@ def f_setup(gdict,log):
         torch.backends.cudnn.deterministic=True
 #         torch.backends.cudnn.enabled = False
         torch.backends.cudnn.benchmark = False        
-
-    ## Special declarations
-    gdict['ngpu']=torch.cuda.device_count()
-    gdict['device']=torch.device("cuda" if (torch.cuda.is_available()) else "cpu")
-    gdict['multi-gpu']=True if (gdict['device'].type == 'cuda') and (gdict['ngpu'] > 1) else False 
-
-    if gdict['distributed']:  try_barrier(gdict['world_rank'])
     
     ########################
     if log:
@@ -281,15 +293,16 @@ def f_setup(gdict,log):
         if gdict['world_rank']!=0:
                 logging.basicConfig(level=logging.DEBUG, filename=logfile, filemode="a+", format="%(asctime)-15s %(levelname)-8s %(message)s")
 
-
 ### Train code ###
+
 def f_train_loop(dataloader,metrics_df,gdict,fixed_noise,mean_spec_val,sdev_spec_val,hist_val,r,ind):
-    ''' Train single epoch '''
+    ''' Train epochs '''
     print("Inside train loop")
 
     ## Define new variables from dict
     keys=['image_size','start_epoch','epochs','iters','best_chi1','best_chi2','save_dir','device','flip_prob','nz','batch_size','bns']
     image_size,start_epoch,epochs,iters,best_chi1,best_chi2,save_dir,device,flip_prob,nz,batchsize,bns=list(collections.OrderedDict({key:gdict[key] for key in keys}).values())
+    
     for epoch in range(start_epoch,epochs):
         t_epoch_start=time.time()
         for count, data in enumerate(dataloader):
@@ -327,19 +340,22 @@ def f_train_loop(dataloader,metrics_df,gdict,fixed_noise,mean_spec_val,sdev_spec
             errD_fake.backward(retain_graph=True)
             D_G_z1 = fake_output[-1].mean().item()
             
-            grads=torch.autograd.grad(outputs=real_output[-1],inputs=real_cpu,grad_outputs=torch.ones_like(real_output[-1]),allow_unused=False,create_graph=True)[0]
             errD = errD_real + errD_fake 
 
             if gdict['lambda_gp']: ## Add gradient - penalty loss
+                grads=torch.autograd.grad(outputs=real_output[-1],inputs=real_cpu,grad_outputs=torch.ones_like(real_output[-1]),allow_unused=False,create_graph=True)[0]
                 gp_loss=f_gp_loss(grads,gdict['lambda_gp'])
                 errD = errD + gp_loss
             else:
                 gp_loss=torch.Tensor([np.nan])
 
+            optimizerD.step()
+
             ###Update G network: maximize log(D(G(z)))
             netG.zero_grad()
             output = netD(fake)
             errG_adv = criterion(output[-1].view(-1), g_label.float())
+
             # Histogram pixel intensity loss
             hist_gen=f_compute_hist(fake,bins=bns)
             hist_loss=loss_hist(hist_gen,hist_val.to(device))
@@ -361,15 +377,15 @@ def f_train_loop(dataloader,metrics_df,gdict,fixed_noise,mean_spec_val,sdev_spec
                 raise SystemError
             
             # Calculate gradients for G
-            errG.backward()
+            errG.backward(retain_graph=True)
             D_G_z2 = output[-1].mean().item()
             
             ### Implement Gradient clipping
-            nn.utils.clip_grad_norm_(netG.parameters(),gdict['grad_clip'])
-            nn.utils.clip_grad_norm_(netD.parameters(),gdict['grad_clip'])
-                
+            if gdict['grad_clip']:
+                nn.utils.clip_grad_norm_(netG.parameters(),gdict['grad_clip'])
+                nn.utils.clip_grad_norm_(netD.parameters(),gdict['grad_clip'])
+            
             optimizerG.step()
-            optimizerD.step()
 
             tme2=time.time()
             ####### Store metrics ########
@@ -430,12 +446,12 @@ def f_train_loop(dataloader,metrics_df,gdict,fixed_noise,mean_spec_val,sdev_spec
                         fname='gen_img_epoch-%s_step-%s'%(epoch,iters)
                         np.save(save_dir+'/images/'+fname,img_arr)
         
-                t_epoch_end=time.time()
-                logging.info("Time taken for epoch %s: %s for rank %s"%(epoch,t_epoch_end-t_epoch_start,gdict['world_rank']))
-                # Save Metrics to file after each epoch
-                metrics_df.to_pickle(save_dir+'/df_metrics.pkle')
-
-                logging.info("best chis: {0}, {1}".format(best_chi1,best_chi2))
+        t_epoch_end=time.time()
+        if gdict['world_rank']==0:
+            logging.info("Time taken for epoch %s, count %s: %s for rank %s"%(epoch,count,t_epoch_end-t_epoch_start,gdict['world_rank']))
+            # Save Metrics to file after each epoch
+            metrics_df.to_pickle(save_dir+'/df_metrics.pkle')
+            logging.info("best chis: {0}, {1}".format(best_chi1,best_chi2))
 
 #########################
 ### Main code #######
@@ -451,17 +467,18 @@ if __name__=="__main__":
     ### Set up global dictionary###
     gdict={}
     gdict=f_init_gdict(args,gdict)
-    gdict['num_imgs']=1200
+#     gdict['num_imgs']=5000
 
     if jpt: ## override for jpt nbks
         gdict['num_imgs']=400
         gdict['run_suffix']='nb_test'
         
     f_setup(gdict,log=(not jpt))
-
+    
+    print(gdict['batch_size'])
     ## Build GAN
     netG,netD,criterion,optimizerD,optimizerG=f_init_GAN(gdict,print_model=True)
-    fixed_noise = torch.randn(gdict['batch_size'], 1, 1, gdict['nz'], device=gdict['device']) #Latent vectors to view G progress    
+    fixed_noise = torch.randn(gdict['batch_size'], 1, 1, gdict['nz'], device=gdict['device']) #Latent vectors to view G progress 
     if gdict['distributed']:  try_barrier(gdict['world_rank'])
 
     ## Load data and precompute

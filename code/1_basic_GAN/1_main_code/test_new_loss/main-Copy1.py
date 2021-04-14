@@ -45,7 +45,7 @@ import shutil
 from utils import *
 from spec_loss import *
 
-   
+### Setup modules ###
 def f_manual_add_argparse():
     ''' use only in jpt notebook'''
     args=argparse.Namespace()
@@ -62,7 +62,7 @@ def f_parse_args():
     parser = argparse.ArgumentParser(description="Run script to train GAN using pytorch", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     add_arg = parser.add_argument
     
-    add_arg('--config','-cfile',  type=str, default='/global/u1/v/vpa/project/jpt_notebooks/Cosmology/Cosmo_GAN/repositories/cosmogan_pytorch/cosmogan/main_code/config_128.yaml', help='Whether to start fresh run or continue previous run')
+    add_arg('--config','-cfile',  type=str, default='config_2dgan.yaml', help='Whether to start fresh run or continue previous run')
     add_arg('--mode','-m',  type=str, choices=['fresh','continue'],default='fresh', help='Whether to start fresh run or continue previous run')
     add_arg('--ip_fldr','-ip',  type=str, default='', help='The input folder for resuming a checkpointed run')
 
@@ -193,7 +193,6 @@ def f_setup(gdict,log):
     gdict['ngpu']=torch.cuda.device_count()
     gdict['device']=torch.device("cuda" if (torch.cuda.is_available()) else "cpu")
     gdict['multi-gpu']=True if (gdict['device'].type == 'cuda') and (gdict['ngpu'] > 1) else False 
-
     
     if log:
         ### Write all logging.info statements to stdout and log file (different for jpt notebooks)
@@ -211,7 +210,7 @@ def f_setup(gdict,log):
         logging.info('Start: %s'%(datetime.now().strftime('%Y-%m-%d  %H:%M:%S')))
         logging.info('Device:{0}'.format(gdict['device']))
 
-
+### Train code ###
 def f_train_loop(dataloader,metrics_df,gdict,fixed_noise,mean_spec_val,sdev_spec_val,hist_val,r,ind):
     ''' Train single epoch '''
     
@@ -222,7 +221,7 @@ def f_train_loop(dataloader,metrics_df,gdict,fixed_noise,mean_spec_val,sdev_spec
     for epoch in range(start_epoch,epochs):
         t_epoch_start=time.time()
         for count, data in enumerate(dataloader, 0):
-#             print(count,len(data),data[0].shape)
+            
             ####### Train GAN ########
             netG.train(); netD.train();  ### Need to add these after inference and before training
 
@@ -233,9 +232,9 @@ def f_train_loop(dataloader,metrics_df,gdict,fixed_noise,mean_spec_val,sdev_spec
             real_cpu = data[0].to(device)
             real_cpu.requires_grad=True
             b_size = real_cpu.size(0)
-            real_label = torch.full((b_size,), 1, device=device)
-            fake_label = torch.full((b_size,), 0, device=device)
-            g_label = torch.full((b_size,), 1, device=device) ## No flipping for Generator labels
+            real_label = torch.full((b_size,), 1, device=device,dtype=float)
+            fake_label = torch.full((b_size,), 0, device=device,dtype=float)
+            g_label = torch.full((b_size,), 1, device=device,dtype=float) ## No flipping for Generator labels
             # Flip labels with probability flip_prob
             for idx in np.random.choice(np.arange(b_size),size=int(np.ceil(b_size*flip_prob))):
                 real_label[idx]=0; fake_label[idx]=1
@@ -246,37 +245,31 @@ def f_train_loop(dataloader,metrics_df,gdict,fixed_noise,mean_spec_val,sdev_spec
 
             # Forward pass real batch through D
             real_output = netD(real_cpu)
-#             print("Real output",torch.max(real_output[-1]))
             errD_real = criterion(real_output[-1].view(-1), real_label.float())
-#             print(errD_real.item())
             errD_real.backward(retain_graph=True)
             D_x = real_output[-1].mean().item()
 
             # Forward pass fake batch through D
             fake_output = netD(fake.detach())   # The detach is important
-#             print("output for Dfake",torch.max(fake_output[-1]))
             errD_fake = criterion(fake_output[-1].view(-1), fake_label.float())
-#             print(errD_fake.item())
             errD_fake.backward(retain_graph=True)
             D_G_z1 = fake_output[-1].mean().item()
             
-            errD = errD_real + errD_fake 
+            errD = errD_real + errD_fake
 
             if gdict['lambda_gp']: ## Add gradient - penalty loss
                 grads=torch.autograd.grad(outputs=real_output[-1],inputs=real_cpu,grad_outputs=torch.ones_like(real_output[-1]),allow_unused=False,create_graph=True)[0]
                 gp_loss=f_gp_loss(grads,gdict['lambda_gp'])
-                errD = errD + gp_loss
+                errD =errD + gp_loss
             else:
                 gp_loss=torch.Tensor([np.nan])
 
             optimizerD.step()
-            
+
             ###Update G network: maximize log(D(G(z)))
             netG.zero_grad()
             output = netD(fake)
-#             print("op for G",torch.max(output[-1]))
             errG_adv = criterion(output[-1].view(-1), g_label.float())
-#             print(errG_adv.item())
             # Histogram pixel intensity loss
             hist_gen=f_compute_hist(fake,bins=bns)
             hist_loss=loss_hist(hist_gen,hist_val.to(device))
@@ -284,12 +277,13 @@ def f_train_loop(dataloader,metrics_df,gdict,fixed_noise,mean_spec_val,sdev_spec
             # Add spectral loss
             mean,sdev=f_torch_image_spectrum(f_invtransform(fake),1,r.to(device),ind.to(device))
             spec_loss=loss_spectrum(mean,mean_spec_val.to(device),sdev,sdev_spec_val.to(device),image_size,gdict['lambda_spec_mean'],gdict['lambda_spec_var'])
+
             
             errG=errG_adv
             if gdict['lambda_spec_mean']: errG=errG + spec_loss 
             if gdict['lambda_fm']:## Add feature matching loss
                 fm_loss=f_FM_loss(real_output,fake_output,gdict['lambda_fm'],gdict)
-                errG= errG + fm_loss
+                errG=errG + fm_loss
             else: 
                 fm_loss=torch.Tensor([np.nan])
 
@@ -298,7 +292,9 @@ def f_train_loop(dataloader,metrics_df,gdict,fixed_noise,mean_spec_val,sdev_spec
                 raise SystemError
             
             # Calculate gradients for G
+#             errG.backward()
             errG.backward(retain_graph=True)
+
             D_G_z2 = output[-1].mean().item()
             
             ### Implement Gradient clipping
@@ -374,8 +370,11 @@ def f_train_loop(dataloader,metrics_df,gdict,fixed_noise,mean_spec_val,sdev_spec
         metrics_df.to_pickle(save_dir+'/df_metrics.pkle')
         
     logging.info("best chis: {0}, {1}".format(best_chi1,best_chi2))
-    
-    
+
+#########################
+### Main code #######
+#########################
+
 if __name__=="__main__":
     jpt=False
 #     jpt=True ##(different for jupyter notebook)
@@ -387,13 +386,13 @@ if __name__=="__main__":
     ### Set up global dictionary###
     gdict={}
     gdict=f_init_gdict(args,gdict)
-    
+
     if jpt: ## override for jpt nbks
-        gdict['num_imgs']=40000
+        gdict['num_imgs']=400
         gdict['run_suffix']='nb_test'
         
     f_setup(gdict,log=(not jpt))
-    
+
     ## Build GAN
     netG,netD,criterion,optimizerD,optimizerG=f_init_GAN(gdict,print_model=True)
     fixed_noise = torch.randn(gdict['batch_size'], 1, 1, gdict['nz'], device=gdict['device']) #Latent vectors to view G progress    
@@ -421,3 +420,4 @@ if __name__=="__main__":
     print("Total time %s"%(tf-t0))
     print('End: %s'%(datetime.now().strftime('%Y-%m-%d  %H:%M:%S')))
     
+

@@ -5,6 +5,11 @@ import yaml
 import numpy as np
 import collections
 
+def f_load_config(config_file):
+    with open(config_file) as f:
+        config = yaml.load(f, Loader=yaml.SafeLoader)
+    return config
+
 ### Transformation functions for image pixel values
 def f_transform(x):
     return 2.*x/(x + 4.) - 1.
@@ -33,10 +38,28 @@ class View(nn.Module):
     def forward(self, x):
         return x.view(*self.shape)
 
+# custom weights initialization called on netG and netD
+def weights_init(m):
+    classname = m.__class__.__name__
+    if classname.find('Conv') != -1:
+        nn.init.normal_(m.weight.data, 0.0, 0.02)
+    elif classname.find('BatchNorm') != -1:
+        nn.init.normal_(m.weight.data, 1.0, 0.02)
+        nn.init.constant_(m.bias.data, 0)
+
+# Generator Code
+class View(nn.Module):
+    def __init__(self, shape):
+        super(View, self).__init__()
+        self.shape = shape
+
+    def forward(self, x):
+        return x.view(*self.shape)
+
 class Generator(nn.Module):
     def __init__(self, gdict):
         super(Generator, self).__init__()
-
+        
         ## Define new variables from dict
         keys=['ngpu','nz','nc','ngf','kernel_size','stride','g_padding']
         ngpu, nz,nc,ngf,kernel_size,stride,g_padding=list(collections.OrderedDict({key:gdict[key] for key in keys}).values())
@@ -99,24 +122,7 @@ class Discriminator(nn.Module):
         )
 
     def forward(self, ip):
-#         print(ip.shape)
-        results=[ip]
-        lst_idx=[]
-        for i,submodel in enumerate(self.main.children()):
-            mid_output=submodel(results[-1])
-            results.append(mid_output)
-            ## Select indices in list corresponding to output of Conv layers
-            if submodel.__class__.__name__.startswith('Conv'):
-#                 print(submodel.__class__.__name__)
-#                 print(mid_output.shape)
-                lst_idx.append(i)
-
-        FMloss=True
-        if FMloss:
-            ans=[results[1:][i] for i in lst_idx + [-1]]
-        else :
-            ans=results[-1]
-        return ans
+        return self.main(ip)
 
 def f_gen_images(gdict,netG,optimizerG,ip_fname,op_loc,op_strg='inf_img_',op_size=500):
     '''Generate images for best saved models
@@ -151,12 +157,12 @@ def f_gen_images(gdict,netG,optimizerG,ip_fname,op_loc,op_strg='inf_img_',op_siz
     noise = torch.randn(op_size, 1, 1, nz, device=device)
     # Generate fake image batch with G
     netG.eval() ## This is required before running inference
-    with torch.no_grad(): ## This is important. fails without it for multi-gpu
-        gen = netG(noise)
-        gen_images=gen.detach().cpu().numpy()[:,:,:,:]
-        print(gen_images.shape)
+    gen = netG(noise)
+    gen_images=gen.detach().cpu().numpy()[:,:,:,:]
+    print(gen_images.shape)
     
     op_fname='%s_epoch-%s_step-%s.npy'%(op_strg,epoch,iters)
+
     np.save(op_loc+op_fname,gen_images)
 
     print("Image saved in ",op_fname)
@@ -172,7 +178,8 @@ def f_save_checkpoint(gdict,epoch,iters,best_chi1,best_chi2,netG,netD,optimizerG
         torch.save({'epoch':epoch,'iters':iters,'best_chi1':best_chi1,'best_chi2':best_chi2,
                 'G_state':netG.state_dict(),'D_state':netD.state_dict(),'optimizerG_state_dict':optimizerG.state_dict(),
                 'optimizerD_state_dict':optimizerD.state_dict()}, save_loc)
-    
+        
+
 def f_load_checkpoint(ip_fname,netG,netD,optimizerG,optimizerD,gdict):
     ''' Load saved checkpoint
     Also loads step, epoch, best_chi1, best_chi2'''
@@ -204,4 +211,3 @@ def f_load_checkpoint(ip_fname,netG,netD,optimizerG,optimizerD,gdict):
     netD.train()
     
     return iters,epoch,best_chi1,best_chi2
-
