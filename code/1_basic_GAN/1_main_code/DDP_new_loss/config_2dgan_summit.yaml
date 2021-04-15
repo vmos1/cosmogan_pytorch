@@ -1,8 +1,8 @@
 
 
 parameters:
-    ip_fname: '/global/cfs/cdirs/m3363/vayyar/cosmogan_data/raw_data/128_square/dataset_2_smoothing_200k/norm_1_train_val.npy'
-    op_loc: '/global/cfs/cdirs/m3363/vayyar/cosmogan_data/results_from_other_code/pytorch/results/128sq/'
+    ip_fname: '/gpfs/alpine/ast153/proj-shared/venkitesh/Cosmogan/data/raw_data/2d_data/128_square/dataset_2_smoothing_200k/norm_1_train_val.npy'
+    op_loc: '/gpfs/alpine/ast153/proj-shared/venkitesh/Cosmogan/data/results_pytorch/2d/'
     image_size: 128
     num_imgs: 200000
 
