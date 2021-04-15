@@ -1,12 +1,11 @@
-description: 'GAN'
 
-data:
+
+parameters:
     ip_fname: '/global/cfs/cdirs/m3363/vayyar/cosmogan_data/raw_data/128_square/dataset_2_smoothing_200k/norm_1_train_val.npy'
     op_loc: '/global/cfs/cdirs/m3363/vayyar/cosmogan_data/results_from_other_code/pytorch/results/128sq/'
     image_size: 128
-    checkpoint_size: 10
     num_imgs: 200000
-training:
+
     workers: 2 #Number of workers for dataloader
     nc: 1 # Number of channels in the training images. For color images this is 3
     nz: 64 # Size of z latent vector (i.e. size of generator input)
@@ -18,5 +17,23 @@ training:
     g_padding: 2
     d_padding: 2
     flip_prob: 0.01
-    
+    bns: 50
 
+    checkpoint_size: 10
+    
+    batch_size: 32
+    epochs: 20
+    learn_rate: 0.0002
+    
+    deterministic: False
+    distributed: True
+    seed: 234373
+    lambda_spec_mean: 1.0
+    lambda_spec_var: 1.0
+    lambda_fm: 100.0 ## Enter False or float
+    lambda_gp: 0.0 ## Enter False or float
+    grad_clip: 1.0
+    save_steps_list: [5,10]
+    run_suffix: train
+
+    description: '2d GAN: DDP with new loss'
