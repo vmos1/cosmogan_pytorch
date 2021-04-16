@@ -1,0 +1,33 @@
+
+
+cori:
+    128:
+        2dgan:
+            code_dir: '/global/u1/v/vpa/project/jpt_notebooks/Cosmology/Cosmo_GAN/repositories/cosmogan_pytorch/code/1_basic_GAN/1_main_code/DDP_new_loss/'
+            config: 'config_2dgan.yaml'
+            staging_loc: '/global/cfs/cdirs/m3363/vayyar/cosmogan_data/results_from_other_code/pytorch/results/128sq'
+            val_file: '/global/cfs/cdirs/m3363/vayyar/cosmogan_data/raw_data/128_square/dataset_2_smoothing_200k/norm_1_train_val.npy'
+        2dcgan:
+            code_dir: '/global/u1/v/vpa/project/jpt_notebooks/Cosmology/Cosmo_GAN/repositories/cosmogan_pytorch/code/3_cond_GAN/1_main_code/DDP/'
+            config: 'config_2dgan.yaml'
+            staging_loc: '/global/cfs/cdirs/m3363/vayyar/cosmogan_data/results_from_other_code/pytorch/results/128sq/'
+            val_file: '/global/cfs/cdirs/m3363/vayyar/cosmogan_data/raw_data/128_square/dataset_5_4univ_cgan/'
+    64:
+        3dgan:
+            code_dir: '/global/u1/v/vpa/project/jpt_notebooks/Cosmology/Cosmo_GAN/repositories/cosmogan_pytorch/code/4_basic_3d_GAN/1_main_code/'
+            config: 'config_3dgan.yaml'
+            staging_loc: '/global/cfs/cdirs/m3363/vayyar/cosmogan_data/results_from_other_code/pytorch/results/3d/'
+            val_file: '/global/cfs/cdirs/m3363/vayyar/cosmogan_data/raw_data/3d_data/dataset1_smoothing_const_params_64cube_100k/norm_1_train_val.npy'
+
+        3dcgan:
+            code_dir: '/global/u1/v/vpa/project/jpt_notebooks/Cosmology/Cosmo_GAN/repositories/cosmogan_pytorch/code/5_3d_cgan/1_main_code/'
+            config: 'config_2dgan.yaml'
+            staging_loc: '/global/cfs/cdirs/m3363/vayyar/cosmogan_data/results_from_other_code/pytorch/results/3d_cGAN/'
+            val_file: '/global/cfs/cdirs/m3363/vayyar/cosmogan_data/raw_data/3d_data/dataset2a_3dcgan_4univs_64cube_simple_splicing/'
+
+
+summit:
+    128:
+        code_dir: 'autofs/nccs-svm1_home1/venkitesh/projects/cosmogan/cosmogan_pytorch/code/1_basic_GAN/1_main_code/DDP_new_loss'
+        config: 'config_summit_128.yaml'
+        staging_loc: '/gpfs/alpine/ast153/proj-shared/venkitesh/Cosmogan/data/results_pytorch/'

@@ -17,6 +17,7 @@ import os
 import random
 import logging
 import sys
+import subprocess
 
 import torch
 import torch.nn as nn
@@ -34,7 +35,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
-from IPython.display import HTML
+# from IPython.display import HTML
 
 import argparse
 import time
@@ -58,7 +59,9 @@ def f_manual_add_argparse():
     args.config='config_2dgan.yaml'
     args.mode='fresh'
     args.ip_fldr=''
-    args.local_rank=0
+#     args.local_rank=0
+    args.facility='cori'
+#     args.distributed=False
 #     args.mode='continue'
 #     args.ip_fldr='/global/cfs/cdirs/m3363/vayyar/cosmogan_data/results_from_other_code/pytorch/results/128sq/20201211_093818_nb_test/'
     
@@ -73,6 +76,8 @@ def f_parse_args():
     add_arg('--mode','-m',  type=str, choices=['fresh','continue'],default='fresh', help='Whether to start fresh run or continue previous run')
     add_arg('--ip_fldr','-ip',  type=str, default='', help='The input folder for resuming a checkpointed run')
     add_arg("--local_rank", default=0, type=int,help='Local rank of GPU on node. Using for pytorch DDP. ')
+    add_arg("--facility", default='cori', choices=['cori','summit'],type=str,help='Facility: cori or summit ')
+    add_arg("--ddp", dest='distributed' ,default=False,action='store_true',help='use Distributed DataParallel for Pytorch or DataParallel')
 
     return parser.parse_args()
 
@@ -98,11 +103,14 @@ def f_init_gdict(args,gdict):
         
     gdict=config_dict['parameters']
 
+    args_dict=vars(args)
     ## Add args variables to gdict
-    for key in ['mode','config','ip_fldr']:
-        gdict[key]=vars(args)[key]
-    
-    if gdict['distributed']: assert not gdict['lambda_gp'],"GP couplings is %s. Cannot use Gradient penalty loss in pytorch DDP"%(gdict['lambda_gp'])
+    for key in args_dict.keys():
+        gdict[key]=args_dict[key]
+
+    if gdict['distributed']: 
+        assert not gdict['lambda_gp'],"GP couplings is %s. Cannot use Gradient penalty loss in pytorch DDP"%(gdict['lambda_gp'])
+    else : print("Not using DDP")
     return gdict
 
 def f_sample_data(ip_tensor,rank=0,num_ranks=1):
@@ -205,6 +213,19 @@ def f_setup(gdict,log):
     torch.backends.cudnn.benchmark=True
 #     torch.autograd.set_detect_anomaly(True)
 
+    ## New additions. Code taken from Jan B.
+    os.environ['MASTER_PORT'] = "8885"
+
+    if gdict['facility']=='summit':
+        get_master = "echo $(cat {} | sort | uniq | grep -v batch | grep -v login | head -1)".format(os.environ['LSB_DJOB_HOSTFILE'])
+        os.environ['MASTER_ADDR'] = str(subprocess.check_output(get_master, shell=True))[2:-3]
+        os.environ['WORLD_SIZE'] = os.environ['OMPI_COMM_WORLD_SIZE']
+        os.environ['RANK'] = os.environ['OMPI_COMM_WORLD_RANK']
+        gdict['local_rank'] = int(os.environ['OMPI_COMM_WORLD_LOCAL_RANK'])
+    else:
+        os.environ['WORLD_SIZE'] = os.environ['SLURM_NTASKS']
+        os.environ['RANK'] = os.environ['SLURM_PROCID']
+        gdict['local_rank'] = int(os.environ['SLURM_LOCALID'])
 
     ## Special declarations
     gdict['ngpu']=torch.cuda.device_count()
@@ -214,9 +235,9 @@ def f_setup(gdict,log):
     ########################
     ###### Set up Distributed Data parallel ######
     if gdict['distributed']:
-        gdict['local_rank']=args.local_rank  
+#         gdict['local_rank']=args.local_rank  ## This is needed when using pytorch -m torch.distributed.launch
         gdict['world_size']=int(os.environ['WORLD_SIZE'])
-        torch.cuda.set_device(args.local_rank) ## Very important
+        torch.cuda.set_device(gdict['local_rank']) ## Very important
         dist.init_process_group(backend='nccl', init_method="env://")  
         gdict['world_rank']= dist.get_rank()
         
@@ -236,11 +257,11 @@ def f_setup(gdict,log):
         if gdict['world_rank']==0: ### For rank=0, create directory name string and make directories
             dt_strg=datetime.now().strftime('%Y%m%d_%H%M%S') ## time format
             dt_lst=[int(i) for i in dt_strg.split('_')] # List storing day and time            
-            dt_tnsr=torch.Tensor(dt_lst).long().to(gdict['device'])  ## Create list to pass to other GPUs 
+            dt_tnsr=torch.LongTensor(dt_lst).to(gdict['device'])  ## Create list to pass to other GPUs 
+
         else: dt_tnsr=torch.Tensor([0,0]).long().to(gdict['device'])
         ### Pass directory name to other ranks
         if gdict['distributed']: dist.broadcast(dt_tnsr, src=0)
-
 
         gdict['save_dir']=gdict['op_loc']+str(int(dt_tnsr[0]))+'_'+str(int(dt_tnsr[1]))+'_'+gdict['run_suffix']
         
@@ -346,6 +367,7 @@ def f_train_loop(dataloader,metrics_df,gdict,fixed_noise,mean_spec_val,sdev_spec
             if gdict['lambda_gp']: ## Add gradient - penalty loss
                 grads=torch.autograd.grad(outputs=real_output[-1],inputs=real_cpu,grad_outputs=torch.ones_like(real_output[-1]),allow_unused=False,create_graph=True)[0]
                 gp_loss=f_gp_loss(grads,gdict['lambda_gp'])
+                gp_loss.backward(retain_graph=True)
                 errD = errD + gp_loss
             else:
                 gp_loss=torch.Tensor([np.nan])
@@ -386,6 +408,7 @@ def f_train_loop(dataloader,metrics_df,gdict,fixed_noise,mean_spec_val,sdev_spec
                 nn.utils.clip_grad_norm_(netG.parameters(),gdict['grad_clip'])
                 nn.utils.clip_grad_norm_(netD.parameters(),gdict['grad_clip'])
             
+#             optimizerD.step()
             optimizerG.step()
 
             tme2=time.time()
@@ -476,7 +499,6 @@ if __name__=="__main__":
         
     f_setup(gdict,log=(not jpt))
     
-    print(gdict['batch_size'])
     ## Build GAN
     netG,netD,criterion,optimizerD,optimizerG=f_init_GAN(gdict,print_model=True)
     fixed_noise = torch.randn(gdict['batch_size'], 1, 1, gdict['nz'], device=gdict['device']) #Latent vectors to view G progress 
@@ -492,6 +514,7 @@ if __name__=="__main__":
     metrics_df=pd.DataFrame(columns=cols)
     if gdict['distributed']:  try_barrier(gdict['world_rank'])
 
+    print(gdict)
     logging.info("Starting Training Loop...")
     f_train_loop(dataloader,metrics_df,gdict,fixed_noise,mean_spec_val,sdev_spec_val,hist_val,r,ind)
     

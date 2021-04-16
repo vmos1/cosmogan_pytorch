@@ -26,7 +26,6 @@ parameters:
     learn_rate: 0.0002
     
     deterministic: False
-    distributed: True
     seed: 234373
     lambda_spec_mean: 1.0
     lambda_spec_var: 1.0
