@@ -289,7 +289,7 @@ def f_FM_loss(real_output,fake_output,lambda_fm,gdict):
     Module to implement Feature-Matching loss. Reads all but last elements of Discriminator ouput
     '''
     FM=torch.Tensor([0.0]).to(gdict['device'])
-    for i,j in zip(real_output[:-1][0],fake_output[:-1][0]):
+    for i,j in zip(real_output[:-1],fake_output[:-1]):
         real_mean=torch.mean(i)
         fake_mean=torch.mean(j)
         FM=FM.clone()+torch.sum(torch.square(real_mean-fake_mean))

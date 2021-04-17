@@ -22,14 +22,15 @@ parameters:
     checkpoint_size: 10
     
     batch_size: 32
-    epochs: 50
+    epochs: 20
     learn_rate: 0.0002
     
     deterministic: False
+    distributed: True
     seed: 234373
     lambda_spec_mean: 1.0
     lambda_spec_var: 1.0
-    lambda_fm: 100.0 ## Enter False or float
+    lambda_fm: 0.0 ## Enter False or float
     lambda_gp: 0.0 ## Enter False or float
     grad_clip: 0.0
     save_steps_list: [5,10]

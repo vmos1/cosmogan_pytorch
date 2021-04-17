@@ -2,7 +2,7 @@
 import numpy as np
 import torch
 # import torch.fft
-from utils import *
+
 
 ############
 ### Numpy functions ### Not used in the code. Just to test the pytorch functions
@@ -25,7 +25,8 @@ def f_radial_profile(data, center=(None,None)):
     
     return radialprofile[1:-1]
 
-def f_compute_spectrum(arr,GLOBAL_MEAN=1.0):
+def f_compute_spectrum(arr,GLOBAL_MEAN=0.9998563):
+    
     
     arr=((arr - GLOBAL_MEAN)/GLOBAL_MEAN)
     y1=np.fft.fft2(arr)
@@ -47,7 +48,7 @@ def f_image_spectrum(x,num_channels):
     '''
     print(x.shape)
     mean=[[] for i in range(num_channels)]    
-    var=[[] for i in range(num_channels)]    
+    sdev=[[] for i in range(num_channels)]    
 
     for i in range(num_channels):
         arr=x[:,i,:,:]
@@ -55,10 +56,10 @@ def f_image_spectrum(x,num_channels):
         batch_pk=f_compute_batch_spectrum(arr)
 #         print(batch_pk)
         mean[i]=np.mean(batch_pk,axis=0)
-        var[i]=np.var(batch_pk,axis=0)
+        sdev[i]=np.std(batch_pk,axis=0)
     mean=np.array(mean)
-    var=np.array(var)
-    return mean,var
+    sdev=np.array(sdev)
+    return mean,sdev
 
 ####################
 ### Pytorch code ###
@@ -288,7 +289,7 @@ def f_FM_loss(real_output,fake_output,lambda_fm,gdict):
     Module to implement Feature-Matching loss. Reads all but last elements of Discriminator ouput
     '''
     FM=torch.Tensor([0.0]).to(gdict['device'])
-    for i,j in zip(real_output[:-1],fake_output[:-1]):
+    for i,j in zip(real_output[:-1][0],fake_output[:-1][0]):
         real_mean=torch.mean(i)
         fake_mean=torch.mean(j)
         FM=FM.clone()+torch.sum(torch.square(real_mean-fake_mean))
@@ -300,32 +301,3 @@ def f_gp_loss(grads,l=1.0):
     '''
     loss=torch.mean(torch.sum(torch.square(grads),dim=[1,2,3]))
     return l*loss
-
-def f_get_loss_cond(loss_type,img_tensor,cosm_params,gdict,bins=None,hist_val_tnsr=None,spec_mean_tnsr=None,spec_sdev_tnsr=None,r=None,ind=None,real_output=None,fake_output=None,grads=None):
-    ''' Module to compute one of the losses for conditional GAN '''
-    
-    loss_tensor=torch.zeros(len(gdict['sigma_list']),device=gdict['device'])
-    
-    for count,i in enumerate(gdict['sigma_list']):   
-        idxs=torch.where(cosm_params==i)[0] ## Get indices for that category
-        if idxs.size(0)>1: 
-            num_frac=idxs.size(0)/img_tensor.shape[0] ## Fraction of points in the category
-            img=img_tensor[idxs]
-            if loss_type=='hist':
-                loss_tensor[count]=loss_hist(f_compute_hist(img,bins),hist_val_tnsr[count])*num_frac
-            elif loss_type=='spec':
-                mean,sdev=f_torch_image_spectrum(f_invtransform(img),1,r,ind)
-                loss_tensor[count]=loss_spectrum(mean,spec_mean_tnsr[count],sdev,spec_sdev_tnsr[count],gdict['image_size'],gdict['lambda_spec_mean'],gdict['lambda_spec_var'])*num_frac
-            elif loss_type=='fm':
-                loss_tensor[count]=f_FM_loss(real_output,fake_output,gdict['lambda_fm'],gdict)
-            elif loss_type=='gp':
-                loss_tensor[count]=f_gp_loss(grads,gdict['lambda_gp'])
-
-    loss=loss_tensor.sum()
-            
-    return loss
-
-
-
-
-

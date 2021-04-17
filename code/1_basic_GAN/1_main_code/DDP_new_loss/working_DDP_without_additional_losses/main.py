@@ -223,9 +223,10 @@ def f_setup(gdict,log):
         os.environ['RANK'] = os.environ['OMPI_COMM_WORLD_RANK']
         gdict['local_rank'] = int(os.environ['OMPI_COMM_WORLD_LOCAL_RANK'])
     else:
-        os.environ['WORLD_SIZE'] = os.environ['SLURM_NTASKS']
-        os.environ['RANK'] = os.environ['SLURM_PROCID']
-        gdict['local_rank'] = int(os.environ['SLURM_LOCALID'])
+        if gdict['distributed']:
+            os.environ['WORLD_SIZE'] = os.environ['SLURM_NTASKS']
+            os.environ['RANK'] = os.environ['SLURM_PROCID']
+            gdict['local_rank'] = int(os.environ['SLURM_LOCALID'])
 
     ## Special declarations
     gdict['ngpu']=torch.cuda.device_count()

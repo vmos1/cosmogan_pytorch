@@ -261,9 +261,10 @@ def f_setup(gdict,log):
         os.environ['RANK'] = os.environ['OMPI_COMM_WORLD_RANK']
         gdict['local_rank'] = int(os.environ['OMPI_COMM_WORLD_LOCAL_RANK'])
     else:
-        os.environ['WORLD_SIZE'] = os.environ['SLURM_NTASKS']
-        os.environ['RANK'] = os.environ['SLURM_PROCID']
-        gdict['local_rank'] = int(os.environ['SLURM_LOCALID'])
+        if gdict['distributed']:
+                os.environ['WORLD_SIZE'] = os.environ['SLURM_NTASKS']
+                os.environ['RANK'] = os.environ['SLURM_PROCID']
+                gdict['local_rank'] = int(os.environ['SLURM_LOCALID'])
 
     ## Special declarations
     gdict['ngpu']=torch.cuda.device_count()
@@ -432,7 +433,7 @@ def f_train_loop(dataloader,metrics_df,gdict,fixed_noise,mean_spec_val,sdev_spec
             errG=errG_adv
             if gdict['lambda_spec_mean']: errG = errG+ spec_loss 
             if gdict['lambda_fm']:## Add feature matching loss
-                fm_loss=f_get_loss_cond('fm',fake,fake_cosm_params,gdict,real_output=real_output,fake_output=fake_output)
+                fm_loss=f_get_loss_cond('fm',fake,fake_cosm_params,gdict,real_output=[i.detach() for i in real_output],fake_output=output)
                 errG= errG+ fm_loss
             else: 
                 fm_loss=torch.Tensor([np.nan])
