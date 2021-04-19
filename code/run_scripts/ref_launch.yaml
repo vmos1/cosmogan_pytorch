@@ -26,24 +26,24 @@ cori:
 
 
 summit:
-    main_code_dir: 'autofs/nccs-svm1_home1/venkitesh/projects/cosmogan/cosmogan_pytorch/'
+    main_code_dir: '/autofs/nccs-svm1_home1/venkitesh/projects/cosmogan/cosmogan_pytorch/'
     staging_loc: '/gpfs/alpine/ast153/proj-shared/venkitesh/Cosmogan/data/results_pytorch/'
 
 
     128:
         2dgan: 
             code_dir: 'code/1_basic_GAN/1_main_code/DDP_new_loss'
-            config: 'config_2dgan_128_summit.yaml'
+            config: 'config_2dgan_summit.yaml'
             val_file: '/gpfs/alpine/ast153/proj-shared/venkitesh/Cosmogan/data/raw_data/2d_data/128_square/dataset_2_smoothing_200k/norm_1_train_val.npy'
 
         2dcgan:
             code_dir: 'code/3_cond_GAN/1_main_code/DDP'
-            config: 'config_2d_cgan.yaml'
+            config: 'config_2d_cgan_summit.yaml'
             val_file: '/gpfs/alpine/ast153/proj-shared/venkitesh/Cosmogan/data/raw_data/2d_data/128_square/dataset_5_4univ_cgan/'
     64:
         3dgan:
             code_dir: 'code/4_basic_3d_GAN/1_main_code/DDP'
-            config: 'config_3dgan.yaml'
+            config: 'config_3dgan_summit.yaml'
             val_file: '/gpfs/alpine/ast153/proj-shared/venkitesh/Cosmogan/data/raw_data/3d_data/64cube/dataset1_smoothing_const_params_64cube_100k/norm_1_train_val.npy'
 
         3dcgan:

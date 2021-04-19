@@ -1,10 +1,10 @@
 
 
 parameters:
-    ip_fname: '/gpfs/alpine/ast153/proj-shared/venkitesh/Cosmogan/data/raw_data/2d_data/128_square/dataset_2_smoothing_200k/norm_1_train_val.npy'
-    op_loc: '/gpfs/alpine/ast153/proj-shared/venkitesh/Cosmogan/data/results_pytorch/2d/'
-    image_size: 128
-    num_imgs: 200000
+    ip_fname: '/gpfs/alpine/ast153/proj-shared/venkitesh/Cosmogan/data/raw_data/3d_data/64cube/dataset2a_3dcgan_4univs_64cube_simple_splicing'
+    op_loc: '/gpfs/alpine/ast153/proj-shared/venkitesh/Cosmogan/data/results_pytorch/3d/'
+    image_size: 64
+    num_imgs: 10000
 
     workers: 2 #Number of workers for dataloader
     nc: 1 # Number of channels in the training images. For color images this is 3
@@ -18,12 +18,12 @@ parameters:
     d_padding: 2
     flip_prob: 0.01
     bns: 50
-
-    checkpoint_size: 10
     
+    checkpoint_size: 10
+
     sigma_list: [0.5,0.8,1.1]
     model: 2
-    batch_size: 32
+    batch_size: 16
     epochs: 50
     learn_rate: 0.0002
     
@@ -31,10 +31,10 @@ parameters:
     seed: 234373
     lambda_spec_mean: 1.0
     lambda_spec_var: 1.0
-    lambda_fm: 100.0 ## Enter False or float
+    lambda_fm: 0.0 ## Enter False or float
     lambda_gp: 0.0 ## Enter False or float
     grad_clip: 1.0
     save_steps_list: [5,10]
     run_suffix: train
 
-    description: '2d GAN: DDP with new loss'
+    description: '3d conditional GAN: DDP with new loss'
