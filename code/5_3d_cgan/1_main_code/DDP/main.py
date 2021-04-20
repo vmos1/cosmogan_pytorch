@@ -113,40 +113,46 @@ def f_init_gdict(args,gdict):
     return gdict
 
 
-def f_sample_data(ip_tensor,params_tensor,rank=0,num_ranks=1):
+def f_get_img_samples(ip_arr,rank=0,num_ranks=1):
     '''
-    Module to load part of dataset depending on world_rank.
+    Module to get part of the numpy image file
     '''
-    data_size=ip_tensor.shape[0]
-    size=data_size//num_ranks
-    print("Using data indices %s-%s for rank %s"%(rank*(size),(rank+1)*size,rank))
-    dataset=TensorDataset(ip_tensor[rank*(size):(rank+1)*size],params_tensor[rank*(size):(rank+1)*size])
-    ### 
-    if gdict['batch_size']>size:
-        print("Caution: batchsize %s is less than samples per GPU."%(gdict['batch_size'],size))
-        raise SystemExit
     
-    data_loader=DataLoader(dataset,batch_size=gdict['batch_size'],shuffle=True,num_workers=0,drop_last=True)
-    return data_loader
-
+    data_size=ip_arr.shape[0]
+    size=data_size//num_ranks
+    
+    if gdict['batch_size']>size:
+        print("Caution: batchsize %s is greater than samples per GPU %s"%(gdict['batch_size'],size))
+        raise SystemExit
+        
+    ### Get a set of random indices from numpy array
+    idxs=np.arange(ip_arr.shape[0])
+    np.random.shuffle(idxs)
+    rnd_idxs=idxs[rank*(size):(rank+1)*size]
+    
+    arr=ip_arr[rnd_idxs].copy()
+    
+    return arr
 
 def f_load_data_precompute(gdict):
     #################################
     ####### Read data and precompute ######
     ### Read input data from different files
+    t0a=time.time()
     for count,sigma in enumerate(gdict['sigma_list']):
         fname=gdict['ip_fname']+'/norm_1_sig_%s_train_val.npy'%(sigma)
-        x=np.load(fname,mmap_mode='r')[:gdict['num_imgs']].transpose(0,1,2,3,4).copy() ## Mod for 3D
+        x=np.load(fname,mmap_mode='r')[:gdict['num_imgs']].transpose(0,1,2,3,4) ## Mod for 3D
+        x=f_get_img_samples(x,gdict['world_rank'],gdict['world_size'])
         size=x.shape[0]
         y=sigma*np.ones(size)
-
+        
         if count==0:
             img=x[:]
             c_pars=y[:]
         else: 
             img=np.vstack([img,x]) # Store images
             c_pars=np.hstack([c_pars,y]) # Store cosmological parameters
-
+    
     ### Manually shuffling numpy arrays to mix sigma values
     size=img.shape[0]
     idxs=np.random.choice(size,size=size,replace=False)
@@ -155,12 +161,14 @@ def f_load_data_precompute(gdict):
     ## convert to tensors
     t_img=torch.from_numpy(img)
     cosm_params=torch.Tensor(c_pars).view(size,1)
-    logging.info("%s, %s"%(cosm_params.shape,t_img.shape))
-    
-#     dataset=TensorDataset(t_img,cosm_params)
-#     dataloader=DataLoader(dataset,batch_size=gdict['batch_size'],shuffle=True,num_workers=0,drop_last=True)
-    data_loader=f_sample_data(t_img,cosm_params,gdict['world_rank'],gdict['world_size'])
+
+    dataset=TensorDataset(t_img,cosm_params)
+    data_loader=DataLoader(dataset,batch_size=gdict['batch_size'],shuffle=True,num_workers=0,drop_last=True)
+#     data_loader=f_sample_data(img,c_pars,gdict['world_rank'],gdict['world_size'])
     print("Size of dataset for GPU %s : %s"%(gdict['world_rank'],len(data_loader.dataset)))
+    
+    t0b=time.time()
+    print("Time for creating dataloader",t0b-t0a,gdict['world_rank'])
     
     # Precompute metrics with validation data for computing losses
     with torch.no_grad():
@@ -168,12 +176,12 @@ def f_load_data_precompute(gdict):
         
         for count,sigma in enumerate(gdict['sigma_list']):
             ip_fname=gdict['ip_fname']+'/norm_1_sig_%s_train_val.npy'%(sigma)
-            val_img=np.load(ip_fname,mmap_mode='r')[-100:].transpose(0,1,2,3,4).copy() ## Mod for 3D
+            val_img=np.load(ip_fname,mmap_mode='r')[-10:].transpose(0,1,2,3,4).copy() ## Mod for 3D
             t_val_img=torch.from_numpy(val_img).to(gdict['device'])
 
             # Precompute radial coordinates
             if count==0: 
-                r,ind=f_get_rad(img)
+                r,ind=f_get_rad(val_img)
                 r=r.to(gdict['device']); ind=ind.to(gdict['device'])
             # Stored mean and std of spectrum for full input data once
             mean_spec_val,sdev_spec_val=f_torch_image_spectrum(f_invtransform(t_val_img),1,r,ind)
@@ -186,7 +194,7 @@ def f_load_data_precompute(gdict):
         spec_sdev_tnsr=torch.stack(spec_sdev_list)
         hist_val_tnsr=torch.stack(hist_val_list)
         
-        del val_img; del t_val_img; del img; del t_img; del spec_mean_list; del spec_sdev_list; del hist_val_list        
+        del val_img; del t_val_img; del img; del spec_mean_list; del spec_sdev_list; del hist_val_list        
 
     return data_loader,spec_mean_tnsr,spec_sdev_tnsr,hist_val_tnsr,r,ind
 

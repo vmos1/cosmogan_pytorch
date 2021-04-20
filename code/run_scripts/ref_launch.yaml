@@ -7,20 +7,24 @@ cori:
     128:
         2dgan:
             code_dir: 'code/1_basic_GAN/1_main_code/DDP_new_loss'
+            op_dir: '128sq/'
             config: 'config_2dgan.yaml'
             val_file: '/global/cfs/cdirs/m3363/vayyar/cosmogan_data/raw_data/128_square/dataset_2_smoothing_200k/norm_1_train_val.npy'
         2dcgan:
             code_dir: 'code/3_cond_GAN/1_main_code/DDP'
+            op_dir: '128sq/'
             config: 'config_2d_cgan.yaml'
             val_file: '/global/cfs/cdirs/m3363/vayyar/cosmogan_data/raw_data/128_square/dataset_5_4univ_cgan/'
     64:
         3dgan:
             code_dir: 'code/4_basic_3d_GAN/1_main_code/DDP'
+            op_dir: '3d/'
             config: 'config_3dgan.yaml'
             val_file: '/global/cfs/cdirs/m3363/vayyar/cosmogan_data/raw_data/3d_data/dataset1_smoothing_const_params_64cube_100k/norm_1_train_val.npy'
 
         3dcgan:
             code_dir: 'code/5_3d_cgan/1_main_code/DDP'
+            op_dir: '3d_cGAN/'
             config: 'config_3d_cgan.yaml'
             val_file: '/global/cfs/cdirs/m3363/vayyar/cosmogan_data/raw_data/3d_data/dataset2a_3dcgan_4univs_64cube_simple_splicing/'
 
