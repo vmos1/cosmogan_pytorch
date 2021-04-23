@@ -138,8 +138,8 @@ def f_load_data_precompute(gdict):
     #################################
     ####### Read data and precompute ######
     t0a=time.time()
-    img=np.load(gdict['ip_fname'],mmap_mode='r')[:gdict['num_imgs']].transpose(0,1,2,3,4)# Mode for 3D
-    print("Shape of input file",img.shape)
+    img=np.load(gdict['ip_fname'],mmap_mode='r')[:gdict['num_imgs']]
+#     print("Shape of input file",img.shape)
     img=f_get_img_samples(img,gdict['world_rank'],gdict['world_size'])  
     
     t_img=torch.from_numpy(img)
@@ -152,7 +152,7 @@ def f_load_data_precompute(gdict):
     
     # Precompute metrics with validation data for computing losses
     with torch.no_grad():
-        val_img=np.load(gdict['ip_fname'],mmap_mode='r')[-100:].transpose(0,1,2,3,4).copy() ## Mod for 3D
+        val_img=np.load(gdict['ip_fname'],mmap_mode='r')[-100:].copy()
         t_val_img=torch.from_numpy(val_img).to(gdict['device'])
 
         # Precompute radial coordinates
@@ -327,7 +327,7 @@ def f_setup(gdict,log):
 
 def f_train_loop(dataloader,metrics_df,gdict,fixed_noise,mean_spec_val,sdev_spec_val,hist_val,r,ind):
     ''' Train epochs '''
-    print("Inside train loop")
+#     print("Inside train loop")
 
     ## Define new variables from dict
     keys=['image_size','start_epoch','epochs','iters','best_chi1','best_chi2','save_dir','device','flip_prob','nz','batch_size','bns']
@@ -476,7 +476,7 @@ def f_train_loop(dataloader,metrics_df,gdict,fixed_noise,mean_spec_val,sdev_spec
                     netG.eval()
                     with torch.no_grad():
                         fake = netG(fixed_noise).detach().cpu()
-                        img_arr=np.array(fake[:,:,:,:])
+                        img_arr=np.array(fake)
                         fname='gen_img_epoch-%s_step-%s'%(epoch,iters)
                         np.save(save_dir+'/images/'+fname,img_arr)
         
@@ -512,7 +512,7 @@ if __name__=="__main__":
     
     ## Build GAN
     netG,netD,criterion,optimizerD,optimizerG=f_init_GAN(gdict,print_model=False)
-    fixed_noise = torch.randn(gdict['batch_size'], 1, 1, 1, gdict['nz'], device=gdict['device']) #Latent vectors to view G progress    # Mod for 3D
+    fixed_noise = torch.randn(gdict['batch_size']*gdict['world_size'], 1, 1, 1, gdict['nz'], device=gdict['device']) #Latent vectors to view G progress    # Mod for 3D
     if gdict['distributed']:  try_barrier(gdict['world_rank'])
 
     ## Load data and precompute

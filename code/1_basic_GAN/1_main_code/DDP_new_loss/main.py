@@ -437,7 +437,6 @@ def f_train_loop(dataloader,metrics_df,gdict,fixed_noise,mean_spec_val,sdev_spec
                 ### Compute validation metrics for updated model
                 netG.eval()
                 with torch.no_grad():
-                    #fake = netG(fixed_noise).detach().cpu()
                     fake = netG(fixed_noise)
                     hist_gen=f_compute_hist(fake,bins=bns)
                     hist_chi=loss_hist(hist_gen,hist_val.to(device))
@@ -470,7 +469,7 @@ def f_train_loop(dataloader,metrics_df,gdict,fixed_noise,mean_spec_val,sdev_spec
                     netG.eval()
                     with torch.no_grad():
                         fake = netG(fixed_noise).detach().cpu()
-                        img_arr=np.array(fake[:,:,:,:])
+                        img_arr=np.array(fake)
                         fname='gen_img_epoch-%s_step-%s'%(epoch,iters)
                         np.save(save_dir+'/images/'+fname,img_arr)
         
@@ -505,7 +504,8 @@ if __name__=="__main__":
     
     ## Build GAN
     netG,netD,criterion,optimizerD,optimizerG=f_init_GAN(gdict,print_model=True)
-    fixed_noise = torch.randn(gdict['batch_size'], 1, 1, gdict['nz'], device=gdict['device']) #Latent vectors to view G progress 
+    fixed_noise = torch.randn(gdict['batch_size']*gdict['world_size'], 1, 1, gdict['nz'], device=gdict['device']) #Latent vectors to view G progress 
+
     if gdict['distributed']:  try_barrier(gdict['world_rank'])
 
     ## Load data and precompute
