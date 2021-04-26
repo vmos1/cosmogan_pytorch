@@ -119,7 +119,7 @@ def f_sample_data(ip_tensor,rank=0,num_ranks=1):
     '''
     data_size=ip_tensor.shape[0]
     size=data_size//num_ranks
-    print("Using data indices %s-%s for rank %s"%(rank*(size),(rank+1)*size,rank))
+    logging.info("Using data indices %s-%s for rank %s"%(rank*(size),(rank+1)*size,rank))
     dataset=TensorDataset(ip_tensor[rank*(size):(rank+1)*size])
     ### 
     if gdict['batch_size']>size:
@@ -135,13 +135,13 @@ def f_load_data_precompute(gdict):
     ####### Read data and precompute ######
     img=np.load(gdict['ip_fname'],mmap_mode='r')[:gdict['num_imgs']].transpose(0,1,2,3).copy()
     t_img=torch.from_numpy(img)
-    print("%s, %s"%(img.shape,t_img.shape))
+#     print("%s, %s"%(img.shape,t_img.shape))
 
 #     dataset=TensorDataset(t_img)
 #     data_loader=DataLoader(dataset,batch_size=gdict['batch_size'],shuffle=True,num_workers=0,drop_last=True)
 
     data_loader=f_sample_data(t_img,gdict['world_rank'],gdict['world_size'])
-    print("Size of dataset for GPU %s : %s"%(gdict['world_rank'],len(data_loader.dataset)))
+    logging.info("Size of dataset for GPU %s : %s"%(gdict['world_rank'],len(data_loader.dataset)))
     
     # Precompute metrics with validation data for computing losses
     with torch.no_grad():
@@ -242,7 +242,7 @@ def f_setup(gdict,log):
         dist.init_process_group(backend='nccl', init_method="env://")  
         gdict['world_rank']= dist.get_rank()
         
-        print("World size %s, world rank %s, local rank %s, hostname %s, GPUs on node %s\n"%(gdict['world_size'],gdict['world_rank'],gdict['local_rank'],socket.gethostname(),gdict['ngpu']))
+        logging.info("World size %s, world rank %s, local rank %s, hostname %s, GPUs on node %s\n"%(gdict['world_size'],gdict['world_rank'],gdict['local_rank'],socket.gethostname(),gdict['ngpu']))
         device = torch.cuda.current_device()
         
         # Divide batch size by number of GPUs
@@ -320,7 +320,7 @@ def f_setup(gdict,log):
 
 def f_train_loop(dataloader,metrics_df,gdict,fixed_noise,mean_spec_val,sdev_spec_val,hist_val,r,ind):
     ''' Train epochs '''
-    print("Inside train loop")
+#     print("Inside train loop")
 
     ## Define new variables from dict
     keys=['image_size','start_epoch','epochs','iters','best_chi1','best_chi2','save_dir','device','flip_prob','nz','batch_size','bns']
@@ -518,7 +518,7 @@ if __name__=="__main__":
     metrics_df=pd.DataFrame(columns=cols)
     if gdict['distributed']:  try_barrier(gdict['world_rank'])
 
-    print(gdict)
+#     print(gdict)
     logging.info("Starting Training Loop...")
     f_train_loop(dataloader,metrics_df,gdict,fixed_noise,mean_spec_val,sdev_spec_val,hist_val,r,ind)
     

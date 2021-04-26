@@ -123,7 +123,7 @@ def f_get_img_samples(ip_arr,rank=0,num_ranks=1):
     size=data_size//num_ranks
     
     if gdict['batch_size']>size:
-        print("Caution: batchsize %s is greater than samples per GPU %s"%(gdict['batch_size'],size))
+        logging.info("Caution: batchsize %s is greater than samples per GPU %s"%(gdict['batch_size'],size))
         raise SystemExit
         
     ### Get a set of random indices from numpy array
@@ -145,10 +145,10 @@ def f_load_data_precompute(gdict):
     t_img=torch.from_numpy(img)
     dataset=TensorDataset(t_img)
     data_loader=DataLoader(dataset,batch_size=gdict['batch_size'],shuffle=True,num_workers=0,drop_last=True)
-    print("Size of dataset for GPU %s : %s"%(gdict['world_rank'],len(data_loader.dataset)))
+    logging.info("Size of dataset for GPU %s : %s"%(gdict['world_rank'],len(data_loader.dataset)))
     
     t0b=time.time()
-    print("Time for creating dataloader",t0b-t0a,gdict['world_rank'])
+    logging.info("Time for creating dataloader",t0b-t0a,gdict['world_rank'])
     
     # Precompute metrics with validation data for computing losses
     with torch.no_grad():
@@ -249,7 +249,7 @@ def f_setup(gdict,log):
         dist.init_process_group(backend='nccl', init_method="env://")  
         gdict['world_rank']= dist.get_rank()
         
-        print("World size %s, world rank %s, local rank %s, hostname %s, GPUs on node %s\n"%(gdict['world_size'],gdict['world_rank'],gdict['local_rank'],socket.gethostname(),gdict['ngpu']))
+        logging.info("World size %s, world rank %s, local rank %s, hostname %s, GPUs on node %s\n"%(gdict['world_size'],gdict['world_rank'],gdict['local_rank'],socket.gethostname(),gdict['ngpu']))
         device = torch.cuda.current_device()
         
         # Divide batch size by number of GPUs
