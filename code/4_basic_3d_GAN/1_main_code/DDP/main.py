@@ -512,7 +512,8 @@ if __name__=="__main__":
     
     ## Build GAN
     netG,netD,criterion,optimizerD,optimizerG=f_init_GAN(gdict,print_model=False)
-    fixed_noise = torch.randn(gdict['batch_size']*gdict['world_size'], 1, 1, 1, gdict['nz'], device=gdict['device']) #Latent vectors to view G progress    # Mod for 3D
+#     fixed_noise = torch.randn(gdict['batch_size']*gdict['world_size'], 1, 1, 1, gdict['nz'], device=gdict['device']) #Latent vectors to view G progress    # Mod for 3D
+    fixed_noise = torch.randn(64, 1, 1, 1, gdict['nz'], device=gdict['device']) #Latent vectors to view G progress    # Mod for 3D
     if gdict['distributed']:  try_barrier(gdict['world_rank'])
 
     ## Load data and precompute
