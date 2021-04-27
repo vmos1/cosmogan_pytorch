@@ -21,7 +21,7 @@ Below are 2D snapshots of a set of 3D images. The input images are to the left a
 ## 2D conditional GAN results
 We develop a conditional GAN trained on 2D images of size $128^2$ for 3 different values of the cosmological paramter sigma.
 ### Metric comparison
-2D cGAN: Pixel intensity | 2D cGAN: Power spectrum |
+2D cGAN: Pixel intensity | 2D cGAN: Power spectrum  |
 :-------------:|:---------------:
 ![Pixel intensity](https://github.com/vmos1/cosmogan_pytorch/blob/master/images/2d_cgan_hist_best.png) |![Power spectrum](https://github.com/vmos1/cosmogan_pytorch/blob/master/images/2d_cgan_spec_best.png)
 
