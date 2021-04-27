@@ -373,6 +373,8 @@ def f_train_loop(dataloader,metrics_df,gdict,fixed_noise,mean_spec_val,sdev_spec
             else:
                 gp_loss=torch.Tensor([np.nan])
 
+            if gdict['grad_clip']: ### Implement Gradient clipping
+                nn.utils.clip_grad_norm_(netD.parameters(),gdict['grad_clip'])
             optimizerD.step()
 
             ###Update G network: maximize log(D(G(z)))
@@ -409,10 +411,7 @@ def f_train_loop(dataloader,metrics_df,gdict,fixed_noise,mean_spec_val,sdev_spec
             
             ### Implement Gradient clipping
             if gdict['grad_clip']:
-                nn.utils.clip_grad_norm_(netG.parameters(),gdict['grad_clip'])
-                nn.utils.clip_grad_norm_(netD.parameters(),gdict['grad_clip'])
-            
-#             optimizerD.step()
+                nn.utils.clip_grad_norm_(netG.parameters(),gdict['grad_clip'])           
             optimizerG.step()
 
             tme2=time.time()

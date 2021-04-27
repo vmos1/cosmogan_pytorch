@@ -275,7 +275,10 @@ def loss_spectrum(spec_mean,spec_mean_ref,spec_std,spec_std_ref,image_size,lambd
     lambda2=lambda_spec_var;
     ans=lambda1*spec_mean+lambda2*spec_sdev
     
-    if torch.isnan(spec_sdev).any():    print("spec loss with nan",ans)
+    if torch.isnan(spec_sdev).any():  
+        print("spec loss with nan",ans)
+        print(torch.mean(torch.pow(spec_std[:,:idx]-spec_std_ref[:,:idx],2)))
+        print(spec_std[:,:idx],spec_sdev)
     
     return ans
     
