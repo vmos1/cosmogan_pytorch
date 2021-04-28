@@ -123,15 +123,19 @@ def f_get_img_samples(ip_arr,rank=0,num_ranks=1):
     size=data_size//num_ranks
     
     if gdict['batch_size']>size:
-        logging.info("Caution: batchsize %s is greater than samples per GPU %s"%(gdict['batch_size'],size))
+        print("Caution: batchsize %s is greater than samples per GPU %s"%(gdict['batch_size'],size))
         raise SystemExit
         
     ### Get a set of random indices from numpy array
-    idxs=np.arange(ip_arr.shape[0])
-    np.random.shuffle(idxs)
-    rnd_idxs=idxs[rank*(size):(rank+1)*size]
+    random=False
+    if random:
+        idxs=np.arange(ip_arr.shape[0])
+        np.random.shuffle(idxs)
+        rnd_idxs=idxs[rank*(size):(rank+1)*size]
+        arr=ip_arr[rnd_idxs].copy()
+        
+    else: arr=ip_arr[rank*(size):(rank+1)*size].copy()
     
-    arr=ip_arr[rnd_idxs].copy()
     return arr
 
 def f_load_data_precompute(gdict):

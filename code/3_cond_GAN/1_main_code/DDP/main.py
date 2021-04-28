@@ -507,7 +507,7 @@ def f_train_loop(dataloader,metrics_df,gdict,fixed_noise,mean_spec_val,sdev_spec
                     netG.eval()
                     with torch.no_grad():
                         for c_pars in gdict['sigma_list']:
-                            tnsr_cosm_params=(torch.ones(batchsize,device=device)*c_pars).view(batchsize,1)
+                            tnsr_cosm_params=(torch.ones(gdict['op_size'],device=device)*c_pars).view(gdict['op_size'],1)
                             fake = netG(fixed_noise,tnsr_cosm_params).detach().cpu()
                             img_arr=np.array(fake[:,:,:,:])
                             fname='gen_img_label-%s_epoch-%s_step-%s'%(c_pars,epoch,iters)
