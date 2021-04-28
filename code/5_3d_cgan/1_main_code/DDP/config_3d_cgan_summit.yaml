@@ -26,6 +26,7 @@ parameters:
     batch_size: 16
     epochs: 50
     learn_rate: 0.0002
+    op_size: 32
     
     deterministic: False
     seed: 234373

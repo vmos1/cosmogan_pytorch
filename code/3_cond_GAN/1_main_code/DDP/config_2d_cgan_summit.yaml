@@ -26,7 +26,8 @@ parameters:
     batch_size: 32
     epochs: 50
     learn_rate: 0.0002
-    
+    op_size: 64
+
     deterministic: False
     seed: 234373
     lambda_spec_mean: 1.0

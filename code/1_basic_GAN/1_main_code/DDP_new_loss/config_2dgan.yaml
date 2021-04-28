@@ -4,7 +4,7 @@ parameters:
     ip_fname: '/global/cfs/cdirs/m3363/vayyar/cosmogan_data/raw_data/128_square/dataset_2_smoothing_200k/norm_1_train_val.npy'
     op_loc: '/global/cfs/cdirs/m3363/vayyar/cosmogan_data/results_from_other_code/pytorch/results/128sq/'
     image_size: 128
-    num_imgs: 200000
+    num_imgs: 100000
 
     workers: 2 #Number of workers for dataloader
     nc: 1 # Number of channels in the training images. For color images this is 3
@@ -20,10 +20,11 @@ parameters:
     bns: 50
 
     checkpoint_size: 10
-    
-    batch_size: 32
-    epochs: 50
+
+    batch_size: 16
+    epochs: 30
     learn_rate: 0.0002
+    op_size: 64
     
     deterministic: False
     seed: 234373

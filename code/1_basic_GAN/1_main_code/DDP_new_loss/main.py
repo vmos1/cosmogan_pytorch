@@ -375,7 +375,7 @@ def f_train_loop(dataloader,metrics_df,gdict,fixed_noise,mean_spec_val,sdev_spec
 
             if gdict['grad_clip']: ### Implement Gradient clipping
                 nn.utils.clip_grad_norm_(netD.parameters(),gdict['grad_clip'])
-            optimizerD.step()
+            optimizerD.step()D
 
             ###Update G network: maximize log(D(G(z)))
             netG.zero_grad()
@@ -409,8 +409,7 @@ def f_train_loop(dataloader,metrics_df,gdict,fixed_noise,mean_spec_val,sdev_spec
             errG.backward()
             D_G_z2 = output[-1].mean().item()
             
-            ### Implement Gradient clipping
-            if gdict['grad_clip']:
+            if gdict['grad_clip']:             ### Implement Gradient clipping
                 nn.utils.clip_grad_norm_(netG.parameters(),gdict['grad_clip'])           
             optimizerG.step()
 
@@ -503,8 +502,7 @@ if __name__=="__main__":
     
     ## Build GAN
     netG,netD,criterion,optimizerD,optimizerG=f_init_GAN(gdict,print_model=True)
-#     fixed_noise = torch.randn(gdict['batch_size']*gdict['world_size'], 1, 1, gdict['nz'], device=gdict['device']) #Latent vectors to view G progress 
-    fixed_noise = torch.randn(64, 1, 1, gdict['nz'], device=gdict['device']) #Latent vectors to view G progress 
+    fixed_noise = torch.randn(gdict['op_size'], 1, 1, gdict['nz'], device=gdict['device']) #Latent vectors to view G progress 
 
     if gdict['distributed']:  try_barrier(gdict['world_rank'])
 

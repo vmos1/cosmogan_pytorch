@@ -4,7 +4,7 @@ parameters:
     ip_fname: '/global/cfs/cdirs/m3363/vayyar/cosmogan_data/raw_data/3d_data/dataset2a_3dcgan_4univs_64cube_simple_splicing'
     op_loc: '/global/cfs/cdirs/m3363/vayyar/cosmogan_data/results_from_other_code/pytorch/results/3d_cGAN/'
     image_size: 64
-    num_imgs: 10000
+    num_imgs: 50000
 
     workers: 2 #Number of workers for dataloader
     nc: 1 # Number of channels in the training images. For color images this is 3
@@ -26,7 +26,8 @@ parameters:
     batch_size: 16
     epochs: 20
     learn_rate: 0.0002
-    
+    op_size: 32
+
     deterministic: False
     seed: 234373
     lambda_spec_mean: 1.0

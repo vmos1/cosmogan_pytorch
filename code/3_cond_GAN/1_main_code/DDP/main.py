@@ -418,6 +418,8 @@ def f_train_loop(dataloader,metrics_df,gdict,fixed_noise,mean_spec_val,sdev_spec
             else:
                 gp_loss=torch.Tensor([np.nan])
 
+            if gdict['grad_clip']: ### Implement Gradient clipping
+                nn.utils.clip_grad_norm_(netD.parameters(),gdict['grad_clip'])
             optimizerD.step()
 
             ###Update G network: maximize log(D(G(z)))
@@ -447,12 +449,9 @@ def f_train_loop(dataloader,metrics_df,gdict,fixed_noise,mean_spec_val,sdev_spec
             errG.backward()
             D_G_z2 = output[-1].mean().item()
             
-            ### Implement Gradient clipping
-            if gdict['grad_clip']:
+            if gdict['grad_clip']: ### Implement Gradient clipping
                 nn.utils.clip_grad_norm_(netG.parameters(),gdict['grad_clip'])
-                nn.utils.clip_grad_norm_(netD.parameters(),gdict['grad_clip'])
 
-#             optimizerD.step()
             optimizerG.step()
 
             tme2=time.time()
@@ -545,8 +544,9 @@ if __name__=="__main__":
     
     ## Build GAN
     netG,netD,criterion,optimizerD,optimizerG=f_init_GAN(gdict,print_model=True)
-    fixed_noise = torch.randn(gdict['batch_size'], 1, 1, gdict['nz'], device=gdict['device']) #Latent vectors to view G progress    
-    rnd_idx=torch.randint(len(gdict['sigma_list']),(gdict['batch_size'],1),device=gdict['device'])
+    fixed_noise = torch.randn(gdict['op_size'], 1, 1, gdict['nz'], device=gdict['device']) #Latent vectors to view G progress    
+
+    rnd_idx=torch.randint(len(gdict['sigma_list']),(gdict['op_size'],1),device=gdict['device'])
     fixed_cosm_params=torch.tensor([gdict['sigma_list'][i] for i in rnd_idx.long()],device=gdict['device']).unsqueeze(-1)
     
     if gdict['distributed']:  try_barrier(gdict['world_rank'])

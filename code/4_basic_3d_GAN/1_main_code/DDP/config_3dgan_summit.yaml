@@ -20,11 +20,12 @@ parameters:
     bns: 50
 
     checkpoint_size: 1
-    
     batch_size: 128 
     epochs: 50
     learn_rate: 0.00008
-    
+    op_size: 32
+
+
     deterministic: False
     seed: 234373
     lambda_spec_mean: 1.0
