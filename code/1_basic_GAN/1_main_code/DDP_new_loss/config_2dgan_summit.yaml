@@ -23,9 +23,9 @@ parameters:
     
     sigma_list: [0.5,0.8,1.1]
     model: 2
-    batch_size: 32
-    epochs: 50
-    learn_rate: 0.0002
+    batch_size: 64
+    epochs: 200
+    learn_rate: 0.001
     op_size: 64
 
     deterministic: False
@@ -34,8 +34,8 @@ parameters:
     lambda_spec_var: 1.0
     lambda_fm: 100.0 ## Enter False or float
     lambda_gp: 0.0 ## Enter False or float
-    grad_clip: 1.0
+    grad_clip: 0.0
     save_steps_list: [5,10]
-    run_suffix: train
+    run_suffix: bs64_lr0.001_nodes4
 
     description: '2d GAN: DDP with new loss'

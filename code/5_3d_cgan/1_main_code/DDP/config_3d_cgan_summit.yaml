@@ -4,7 +4,7 @@ parameters:
     ip_fname: '/gpfs/alpine/ast153/proj-shared/venkitesh/Cosmogan/data/raw_data/3d_data/64cube/dataset2a_3dcgan_4univs_64cube_simple_splicing'
     op_loc: '/gpfs/alpine/ast153/proj-shared/venkitesh/Cosmogan/data/results_pytorch/3d/'
     image_size: 64
-    num_imgs: 50000
+    num_imgs: 40000
 
     workers: 2 #Number of workers for dataloader
     nc: 1 # Number of channels in the training images. For color images this is 3
@@ -23,19 +23,19 @@ parameters:
 
     sigma_list: [0.5,0.8,1.1]
     model: 2
-    batch_size: 16
-    epochs: 50
-    learn_rate: 0.0002
+    batch_size: 8
+    epochs: 100
+    learn_rate: 0.0001
     op_size: 32
     
     deterministic: False
     seed: 234373
-    lambda_spec_mean: 1.0
-    lambda_spec_var: 1.0
+    lambda_spec_mean: 0.1
+    lambda_spec_var: 0.1
     lambda_fm: 0.0 ## Enter False or float
     lambda_gp: 0.0 ## Enter False or float
     grad_clip: 1.0
     save_steps_list: [5,10]
-    run_suffix: train
+    run_suffix: cgan_bs8_lr0.0001_nodes8
 
     description: '3d conditional GAN: DDP with new loss'
