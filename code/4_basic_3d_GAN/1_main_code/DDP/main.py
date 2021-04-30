@@ -222,7 +222,7 @@ def f_setup(gdict,log):
     '''
     
     torch.backends.cudnn.benchmark=True
-    torch.autograd.set_detect_anomaly(True)
+#     torch.autograd.set_detect_anomaly(True)
 
     ## New additions. Code taken from Jan B.
     os.environ['MASTER_PORT'] = "8885"
@@ -472,7 +472,7 @@ def f_train_loop(dataloader,metrics_df,gdict,fixed_noise,mean_spec_val,sdev_spec
                         best_chi2=spec_chi.item()
                         logging.info("Saving best spec model at epoch %s, step %s"%(epoch,iters))
 
-                    if iters in gdict['save_steps_list']:
+                    if ((iters in gdict['save_steps_list']) or ((gdict['save_steps_list']=='all') and (count % gdict['checkpoint_size'] == 0))):
                         f_save_checkpoint(gdict,epoch,iters,best_chi1,best_chi2,netG,netD,optimizerG,optimizerD,save_loc=save_dir+'/models/checkpoint_{0}.tar'.format(iters))
                         logging.info("Saving given-step at epoch %s, step %s."%(epoch,iters))
 
