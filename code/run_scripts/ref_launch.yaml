@@ -15,6 +15,19 @@ cori:
             op_dir: '128sq/'
             config: 'config_2d_cgan.yaml'
             val_file: '/global/cfs/cdirs/m3363/vayyar/cosmogan_data/raw_data/128_square/dataset_5_4univ_cgan/'
+
+        3dgan:
+            code_dir: 'code/4_basic_3d_GAN/1_main_code/DDP_128cube'
+            op_dir: '3d/'
+            config: 'config_3dgan.yaml'
+            val_file: '/global/cfs/cdirs/m3363/vayyar/cosmogan_data/raw_data/3d_data/dataset3_smoothing_const_params_128cube/norm_1_train_val.npy'
+
+        3dcgan:
+            code_dir: 'code/3_cond_GAN/1_main_code/DDP/DDP_128cube'
+            op_dir: '3d_cGAN/'
+            config: 'config_3d_cgan.yaml'
+            val_file: '/global/cfs/cdirs/m3363/vayyar/cosmogan_data/raw_data/3d_data/dataset4_smoothing_4univ_cgan_varying_sigma_128cube/'
+
     64:
         3dgan:
             code_dir: 'code/4_basic_3d_GAN/1_main_code/DDP'
@@ -44,6 +57,19 @@ summit:
             code_dir: 'code/3_cond_GAN/1_main_code/DDP'
             config: 'config_2d_cgan_summit.yaml'
             val_file: '/gpfs/alpine/ast153/proj-shared/venkitesh/Cosmogan/data/raw_data/2d_data/128_square/dataset_5_4univ_cgan/'
+
+        3dgan:
+            code_dir: 'code/4_basic_3d_GAN/1_main_code/DDP_128cube'
+            op_dir: '3d/'
+            config: 'config_3dgan.yaml'
+            val_file: '/gpfs/alpine/ast153/proj-shared/venkitesh/Cosmogan/data/raw_data/3d_data/128cube/dataset3_smoothing_const_params_128cube/norm_1_train_val.npy'
+
+        3dcgan:
+            code_dir: 'code/3_cond_GAN/1_main_code/DDP_128cube'
+            op_dir: '3d_cGAN/'
+            config: 'config_3d_cgan.yaml'
+            val_file: '/gpfs/alpine/ast153/proj-shared/venkitesh/Cosmogan/data/raw_data/3d_data/128cube/dataset4_smoothing_4univ_cgan_varying_sigma_128cube/'
+            
     64:
         3dgan:
             code_dir: 'code/4_basic_3d_GAN/1_main_code/DDP'

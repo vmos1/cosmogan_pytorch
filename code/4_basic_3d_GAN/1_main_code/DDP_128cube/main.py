@@ -500,7 +500,7 @@ def f_train_loop(dataloader,metrics_df,gdict,fixed_noise,mean_spec_val,sdev_spec
 
 if __name__=="__main__":
     jpt=False
-#     jpt=True ##(different for jupyter notebook)
+#     jpt=True ##(different for jupyter notebook)s
     t0=time.time()
     args=f_parse_args() if not jpt else f_manual_add_argparse()
 
@@ -539,9 +539,9 @@ if __name__=="__main__":
     if gdict['world_rank']==0: ## Generate images for best saved models ######
         op_loc=gdict['save_dir']+'/images/'
         ip_fname=gdict['save_dir']+'/models/checkpoint_best_spec.tar'
-        f_gen_images(gdict,netG,optimizerG,ip_fname,op_loc,op_strg='best_spec',op_size=200)
+        f_gen_images(gdict,netG,optimizerG,ip_fname,op_loc,op_strg='best_spec',op_size=32)
         ip_fname=gdict['save_dir']+'/models/checkpoint_best_hist.tar'
-        f_gen_images(gdict,netG,optimizerG,ip_fname,op_loc,op_strg='best_hist',op_size=200)
+        f_gen_images(gdict,netG,optimizerG,ip_fname,op_loc,op_strg='best_hist',op_size=32)
     
     tf=time.time()
     logging.info("Total time %s"%(tf-t0))
