@@ -27,7 +27,6 @@ def f_radial_profile(data, center=(None,None)):
 
 def f_compute_spectrum(arr,GLOBAL_MEAN=0.9998563):
     
-    
     arr=((arr - GLOBAL_MEAN)/GLOBAL_MEAN)
     y1=np.fft.fft2(arr)
     y1=fftpack.fftshift(y1)
@@ -197,15 +196,16 @@ def loss_spectrum(spec_mean,spec_mean_ref,spec_std,spec_std_ref,image_size,lambd
     idx=int(image_size/2) ### For the spectrum, use only N/2 indices for loss calc.
     ### Warning: the first index is the channel number.For multiple channels, you are averaging over them, which is fine.
         
-    spec_mean=torch.log(torch.mean(torch.pow(spec_mean[:,:idx]-spec_mean_ref[:,:idx],2)))
-    spec_sdev=torch.log(torch.mean(torch.pow(spec_std[:,:idx]-spec_std_ref[:,:idx],2)))
+    loss_mean=torch.log(torch.mean(torch.pow(spec_mean[:,:idx]-spec_mean_ref[:,:idx],2)))
+    loss_sdev=torch.log(torch.mean(torch.pow(spec_std[:,:idx]-spec_std_ref[:,:idx],2)))
     
-    lambda1=lambda_spec_mean;
-    lambda2=lambda_spec_var;
-    ans=lambda1*spec_mean+lambda2*spec_sdev
+    ans=lambda_spec_mean*loss_mean+lambda_spec_var*loss_sdev
     
-    if torch.isnan(spec_sdev).any():    print("spec loss with nan",ans)
-    
+    if torch.isnan(loss_sdev).any():    
+        print("spec mean %s, spec var %s"%(loss_mean,loss_sdev))
+        print("spec sdev",spec_std)
+        raise SystemExit
+        
     return ans
     
 def loss_hist(hist_sample,hist_ref):

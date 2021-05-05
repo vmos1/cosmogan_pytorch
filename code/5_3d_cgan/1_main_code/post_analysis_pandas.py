@@ -29,6 +29,7 @@ def parse_args():
     add_arg('--val_data','-v', type=str, default='/global/cfs/cdirs/m3363/vayyar/cosmogan_data/raw_data/3d_data/dataset1_smoothing_const_params_100k/val.npy',help='The .npy file with input data to compare with')
     add_arg('--folder','-f', type=str,help='The full path of the folder containing the data to analyze.')
     add_arg('--cores','-c', type=int, default=64,help='Number of cores to use for parallelization')
+    add_arg('--img_size','-i', type=int, default=64,help='Dimension of input images. 64 or 128')
     add_arg('--bins_type','-bin', type=str, default='uneven',help='Number of cores to use for parallelization')
 
     return parser.parse_args()
@@ -124,7 +125,7 @@ def f_high_pixel(images,cutoff=0.9966):
     return num_large
 
 
-def f_compute_chisqr(dict_val,dict_sample):
+def f_compute_chisqr(dict_val,dict_sample,img_size):
     '''
     Compute chi-square values for sample w.r.t input images
     Input: 2 dictionaries with 4 keys for histogram and spectrum values and errors
@@ -155,7 +156,7 @@ def f_compute_chisqr(dict_val,dict_sample):
         chisqr_dict.update({'chi_2':np.sum(np.divide(sq_diff[:idx],1.0))}) ## chi-sqr without denominator division
         chisqr_dict.update({'chi_imgvar':np.sum(dict_sample['hist_err'][:idx])/np.sum(dict_val['hist_err'][:idx])}) ## measures total spread in histograms wrt to input data
 
-        idx=64
+        idx=int(img_size/2)
         spec_diff=(dict_val['spec_val']-dict_sample['spec_val'])**2
         ### computing the spectral loss chi-square
         chisqr_dict.update({'chi_spec1':np.sum(spec_diff[:idx]/dict_sample['spec_val'][:idx]**2)})
@@ -176,7 +177,7 @@ def f_compute_chisqr(dict_val,dict_sample):
     return chisqr_dict
     
     
-def f_get_computed_dict(fname,img_type,bins,dict_val):
+def f_get_computed_dict(fname,img_type,bins,dict_val,img_size):
     '''
     '''
     
@@ -188,7 +189,7 @@ def f_get_computed_dict(fname,img_type,bins,dict_val):
     ### Compute spectrum and histograms
     dict_sample=f_compute_hist_spect(images,bins) ## list of 5 numpy arrays 
     ### Compute chi squares
-    dict_chisqrs=f_compute_chisqr(dict_val,dict_sample)
+    dict_chisqrs=f_compute_chisqr(dict_val,dict_sample,img_size)
     
     dict1={}
     dict1.update(dict_chisqrs)
@@ -204,6 +205,7 @@ if __name__=="__main__":
     args=parse_args()
     fldr_name=args.folder
     main_dir=fldr_name
+    img_size=args.img_size
     if main_dir.endswith('/'): main_dir=main_dir[:-1]
     
     assert os.path.exists(main_dir), "Directory doesn't exist"
@@ -252,7 +254,7 @@ if __name__=="__main__":
         # pandarallel.initialize(nb_workers=num_cores,progress_bar=True)
 
         t2=time.time()
-        dict1=df.parallel_apply(lambda row: f_get_computed_dict(fname=row.fname,img_type='train_gen',bins=bins,dict_val=dict_val),axis=1)
+        dict1=df.parallel_apply(lambda row: f_get_computed_dict(fname=row.fname,img_type='train_gen',bins=bins,dict_val=dict_val,img_size=img_size),axis=1)
         keys=dict1[0].keys()
         ### Convert list of dicts to dict of lists
         dict_list={key:[k[key] for k in dict1] for key in keys}
