@@ -202,9 +202,10 @@ def loss_spectrum(spec_mean,spec_mean_ref,spec_std,spec_std_ref,image_size,lambd
     ans=lambda_spec_mean*loss_mean+lambda_spec_var*loss_sdev
     
     if torch.isnan(loss_sdev).any():    
-        print("spec mean %s, spec var %s"%(loss_mean,loss_sdev))
-        print("spec sdev",spec_std)
-        raise SystemExit
+        print("loss spec mean %s, loss spec var %s"%(loss_mean,loss_sdev))
+        print("spec mean, ref",spec_mean, spec_mean_ref)
+        print("spec var, ref",spec_std, spec_std_ref)
+#         raise SystemExit
         
     return ans
     
