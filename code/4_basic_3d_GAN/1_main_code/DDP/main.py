@@ -174,7 +174,7 @@ class Dataset:
             t_val_img=torch.from_numpy(val_img).to(gdict['device'])
             
             # Compute
-            self.val_spec_mean,self.val_spec_var=f_torch_image_spectrum(f_invtransform(t_val_img),1,self.r.to(gdict['device']),self.ind.to(gdict['device']))
+            self.val_spec_mean,self.val_spec_var=f_torch_image_spectrum(f_invtransform(t_val_img),1,self.r,self.ind)
             self.val_hist=f_compute_hist(t_val_img,bins=gdict['bns'])
             del val_img; del t_val_img; del img; del t_img;
 
