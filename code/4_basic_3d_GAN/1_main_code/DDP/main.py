@@ -138,11 +138,10 @@ def f_get_img_samples(ip_arr,rank=0,num_ranks=1):
     
     return arr
 
-class dataset:
-    def __init__(self,gdict,train_ref=100,val_ref=100):
+class Dataset:
+    def __init__(self,gdict):
         '''
         Load training dataset and compute spectrum and histogram for a small batch of training and validation dataset.
-        train_ref and val_ref pick last few images in dataset
         '''
         ## Load training dataset
         t0a=time.time()
@@ -158,27 +157,26 @@ class dataset:
         t0b=time.time()
         logging.info("Time for creating dataloader",t0b-t0a,gdict['world_rank'])
         
-        
         # Precompute spectrum and histogram for small training and validation data for computing losses
         with torch.no_grad():
-            val_img=np.load(gdict['ip_fname'],mmap_mode='r')[-train_ref:].copy()
+            val_img=np.load(gdict['ip_fname'],mmap_mode='r')[-100:].copy()
             t_val_img=torch.from_numpy(val_img).to(gdict['device'])
             # Precompute radial coordinates
             r,ind=f_get_rad(val_img)
-            self.r,self.ind=r.to(gdict['device']),ind.to(gdict['device'])
+            self.r,self.ind=r,ind
 
             # Compute
-            self.train_spec_mean,self.train_spec_var=f_torch_image_spectrum(f_invtransform(t_val_img),1,self.r,self.ind)
+            self.train_spec_mean,self.train_spec_var=f_torch_image_spectrum(f_invtransform(t_val_img),1,self.r.to(gdict['device']),self.ind.to(gdict['device']))
             self.train_hist=f_compute_hist(t_val_img,bins=gdict['bns'])
             
             # Repeat for validation dataset
-            val_img=np.load(gdict['ip_fname'],mmap_mode='r')[-(2*val_ref):-(val_ref)].copy()
-            t_val_img=torch.from_numpy(val_img).to(gdict['device'])
+#             val_img=np.load(gdict['ip_fname'],mmap_mode='r')[-200:-100].copy()
+#             t_val_img=torch.from_numpy(val_img).to(gdict['device'])
             
             # Compute
-            self.val_spec_mean,self.val_spec_var=f_torch_image_spectrum(f_invtransform(t_val_img),1,self.r,self.ind)
+            self.val_spec_mean,self.val_spec_var=f_torch_image_spectrum(f_invtransform(t_val_img),1,self.r.to(gdict['device']),self.ind.to(gdict['device']))
             self.val_hist=f_compute_hist(t_val_img,bins=gdict['bns'])
-            del val_img; del t_val_img; del img;
+            del val_img; del t_val_img; del img; del t_img;
 
 
 def f_init_GAN(gdict,print_model=False):
@@ -398,7 +396,7 @@ def f_train_loop(Dset,metrics_df,gdict,fixed_noise):
                 nn.utils.clip_grad_norm_(netD.parameters(),gdict['grad_clip'])
 
             optimizerD.step()
-# dict_keys(['train_data_loader', 'r', 'ind', 'train_spec_mean', 'train_spec_var', 'train_hist', 'val_spec_mean', 'val_spec_var', 'val_hist'])
+            # Dset vars: ['train_data_loader', 'r', 'ind', 'train_spec_mean', 'train_spec_var', 'train_hist', 'val_spec_mean', 'val_spec_var', 'val_hist']
 
             ###Update G network: maximize log(D(G(z)))
             netG.zero_grad()
@@ -408,7 +406,7 @@ def f_train_loop(Dset,metrics_df,gdict,fixed_noise):
             # Histogram pixel intensity loss
             hist_gen=f_compute_hist(fake,bins=bns)
             hist_loss=loss_hist(hist_gen,Dset.train_hist.to(device))
-
+            
             # Add spectral loss
             mean,sdev=f_torch_image_spectrum(f_invtransform(fake),1,Dset.r.to(device),Dset.ind.to(device))
             spec_loss=loss_spectrum(mean,Dset.train_spec_mean.to(device),sdev,Dset.train_spec_var.to(device),image_size,gdict['lambda_spec_mean'],gdict['lambda_spec_var'])
@@ -535,9 +533,7 @@ if __name__=="__main__":
     if gdict['distributed']:  try_barrier(gdict['world_rank'])
 
     ## Load data and precompute
-    ## Load data and precompute
-#     dataloader,mean_spec_val,sdev_spec_val,hist_val,r,ind=f_load_data_precompute(gdict)
-    Dset=dataset(gdict,100,100)
+    Dset=Dataset(gdict)
     #################################
     ########## Train loop and save metrics and images ######
     ### Set up metrics dataframe
