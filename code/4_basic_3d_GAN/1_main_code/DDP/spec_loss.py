@@ -161,24 +161,25 @@ def f_torch_image_spectrum(x,num_channels,r,ind):
     Data has to be in the form (batch,channel,x,y)
     '''
     mean=[[] for i in range(num_channels)]    
-    sdev=[[] for i in range(num_channels)]    
+    var=[[] for i in range(num_channels)] 
 
     for i in range(num_channels):
         arr=x[:,i,:,:,:] # Mod for 3D
         batch_pk=f_torch_compute_batch_spectrum(arr,r,ind)
         mean[i]=torch.mean(batch_pk,axis=0)
-#         sdev[i]=torch.std(batch_pk,axis=0)/np.sqrt(batch_pk.shape[0])
-#         sdev[i]=torch.std(batch_pk,axis=0)
-        sdev[i]=torch.var(batch_pk,axis=0)
+#         var[i]=torch.std(batch_pk,axis=0)/np.sqrt(batch_pk.shape[0])
+#         var[i]=torch.std(batch_pk,axis=0)
+        var[i]=torch.var(batch_pk,axis=0)
     
     mean=torch.stack(mean)
-    sdev=torch.stack(sdev)
+    var=torch.stack(var)
         
-    if (torch.isnan(mean).any() or torch.isnan(sdev).any()):
-        print("Nans in spectrum",mean,sdev)
-        print("Input image",x)
+    if (torch.isnan(mean).any() or torch.isnan(var).any()):
+        print("Nans in spectrum",mean,var)
+        if torch.isnan(x).any():
+            print("Nans in Input image")
 
-    return mean,sdev
+    return mean,var
 
 def f_compute_hist(data,bins):
     
@@ -193,11 +194,11 @@ def f_compute_hist(data,bins):
     return hist_data
 
 ### Losses 
-def loss_spectrum(spec_mean,spec_mean_ref,spec_std,spec_std_ref,image_size,lambda_spec_mean,lambda_spec_var):
+def loss_spectrum(spec_mean,spec_mean_ref,spec_var,spec_var_ref,image_size,lambda_spec_mean,lambda_spec_var):
     ''' Loss function for the spectrum : mean + variance 
     Log(sum( batch value - expect value) ^ 2 )) '''
     
-    if (torch.isnan(spec_mean).any() or torch.isnan(spec_std).any()):
+    if (torch.isnan(spec_mean).any() or torch.isnan(spec_var).any()):
         ans=torch.tensor(float("inf"))
         return ans
     
@@ -205,14 +206,14 @@ def loss_spectrum(spec_mean,spec_mean_ref,spec_std,spec_std_ref,image_size,lambd
     ### Warning: the first index is the channel number.For multiple channels, you are averaging over them, which is fine.
         
     loss_mean=torch.log(torch.mean(torch.pow(spec_mean[:,:idx]-spec_mean_ref[:,:idx],2)))
-    loss_sdev=torch.log(torch.mean(torch.pow(spec_std[:,:idx]-spec_std_ref[:,:idx],2)))
+    loss_var=torch.log(torch.mean(torch.pow(spec_var[:,:idx]-spec_var_ref[:,:idx],2)))
     
-    ans=lambda_spec_mean*loss_mean+lambda_spec_var*loss_sdev
+    ans=lambda_spec_mean*loss_mean+lambda_spec_var*loss_var
     
-    if torch.isnan(loss_sdev).any():    
-        print("loss spec mean %s, loss spec var %s"%(loss_mean,loss_sdev))
-        print("spec mean, ref",spec_mean, spec_mean_ref)
-        print("spec var, ref",spec_std, spec_std_ref)
+    if (torch.isnan(ans).any()) :    
+        print("loss spec mean %s, loss spec var %s"%(loss_mean,loss_var))
+        print("spec mean %s, ref %s"%(spec_mean, spec_mean_ref))
+        print("spec var %s, ref %s"%(spec_var, spec_var_ref))
 #         raise SystemExit
         
     return ans
