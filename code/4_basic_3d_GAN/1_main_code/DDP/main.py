@@ -25,7 +25,7 @@ import torch.nn.parallel
 import torch.backends.cudnn as cudnn
 import torch.optim as optim
 import torch.utils.data
-#from torchsummary import summary
+# from torchsummary import summary
 from torch.utils.data import DataLoader, TensorDataset
 import torch.distributed as dist
 from torch.nn.parallel import DistributedDataParallel
@@ -163,15 +163,15 @@ class Dataset:
             t_val_img=torch.from_numpy(val_img).to(gdict['device'])
             # Precompute radial coordinates
             r,ind=f_get_rad(val_img)
-            self.r,self.ind=r,ind
+            self.r,self.ind=r.to(gdict['device']),ind.to(gdict['device'])
 
             # Compute
-            self.train_spec_mean,self.train_spec_var=f_torch_image_spectrum(f_invtransform(t_val_img),1,self.r.to(gdict['device']),self.ind.to(gdict['device']))
+            self.train_spec_mean,self.train_spec_var=f_torch_image_spectrum(f_invtransform(t_val_img),1,self.r,self.ind)
             self.train_hist=f_compute_hist(t_val_img,bins=gdict['bns'])
             
             # Repeat for validation dataset
-#             val_img=np.load(gdict['ip_fname'],mmap_mode='r')[-200:-100].copy()
-#             t_val_img=torch.from_numpy(val_img).to(gdict['device'])
+            val_img=np.load(gdict['ip_fname'],mmap_mode='r')[-200:-100].copy()
+            t_val_img=torch.from_numpy(val_img).to(gdict['device'])
             
             # Compute
             self.val_spec_mean,self.val_spec_var=f_torch_image_spectrum(f_invtransform(t_val_img),1,self.r.to(gdict['device']),self.ind.to(gdict['device']))
@@ -408,7 +408,7 @@ def f_train_loop(Dset,metrics_df,gdict,fixed_noise):
             hist_loss=loss_hist(hist_gen,Dset.train_hist.to(device))
             
             # Add spectral loss
-            mean,sdev=f_torch_image_spectrum(f_invtransform(fake),1,Dset.r.to(device),Dset.ind.to(device))
+            mean,sdev=f_torch_image_spectrum(f_invtransform(fake),1,Dset.r,Dset.ind)
             spec_loss=loss_spectrum(mean,Dset.train_spec_mean.to(device),sdev,Dset.train_spec_var.to(device),image_size,gdict['lambda_spec_mean'],gdict['lambda_spec_var'])
 
             errG=errG_adv
@@ -461,7 +461,7 @@ def f_train_loop(Dset,metrics_df,gdict,fixed_noise):
                     fake = netG(fixed_noise)
                     hist_gen=f_compute_hist(fake,bins=bns)
                     hist_chi=loss_hist(hist_gen,Dset.val_hist.to(device))
-                    mean,sdev=f_torch_image_spectrum(f_invtransform(fake),1,Dset.r.to(device),Dset.ind.to(device))
+                    mean,sdev=f_torch_image_spectrum(f_invtransform(fake),1,Dset.r,Dset.ind)
                     spec_chi=loss_spectrum(mean,Dset.val_spec_mean.to(device),sdev,Dset.val_spec_var.to(device),image_size,gdict['lambda_spec_mean'],gdict['lambda_spec_var'])
 
                 # Storing chi for next step

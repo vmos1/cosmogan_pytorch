@@ -174,6 +174,10 @@ def f_torch_image_spectrum(x,num_channels,r,ind):
     mean=torch.stack(mean)
     sdev=torch.stack(sdev)
         
+    if (torch.isnan(mean).any() or torch.isnan(sdev).any()):
+        print("Nans in spectrum",mean,sdev)
+        print("Input image",x)
+
     return mean,sdev
 
 def f_compute_hist(data,bins):
@@ -192,6 +196,10 @@ def f_compute_hist(data,bins):
 def loss_spectrum(spec_mean,spec_mean_ref,spec_std,spec_std_ref,image_size,lambda_spec_mean,lambda_spec_var):
     ''' Loss function for the spectrum : mean + variance 
     Log(sum( batch value - expect value) ^ 2 )) '''
+    
+    if (torch.isnan(spec_mean).any() or torch.isnan(spec_std).any()):
+        ans=torch.tensor(float("inf"))
+        return ans
     
     idx=int(image_size/2) ### For the spectrum, use only N/2 indices for loss calc.
     ### Warning: the first index is the channel number.For multiple channels, you are averaging over them, which is fine.
