@@ -25,7 +25,7 @@ import torch.nn.parallel
 import torch.backends.cudnn as cudnn
 import torch.optim as optim
 import torch.utils.data
-#from torchsummary import summary
+# from torchsummary import summary
 from torch.utils.data import DataLoader, TensorDataset
 import torch.distributed as dist
 from torch.nn.parallel import DistributedDataParallel
@@ -113,109 +113,7 @@ def f_init_gdict(args,gdict):
     else : print("Not using DDP")
     return gdict
 
-
-def f_get_img_samples(ip_arr,rank=0,num_ranks=1):
-    '''
-    Module to get part of the numpy image file
-    '''
-    
-    data_size=ip_arr.shape[0]
-    size=data_size//num_ranks
-    
-    if gdict['batch_size']>size:
-        print("Caution: batchsize %s is greater than samples per GPU %s"%(gdict['batch_size'],size))
-        raise SystemExit
-        
-    ### Get a set of random indices from numpy array
-    random=False
-    if random:
-        idxs=np.arange(ip_arr.shape[0])
-        np.random.shuffle(idxs)
-        rnd_idxs=idxs[rank*(size):(rank+1)*size]
-        arr=ip_arr[rnd_idxs].copy()
-        
-    else: arr=ip_arr[rank*(size):(rank+1)*size].copy()
-    
-    return arr
-
-def f_load_data_precompute(gdict):
-    #################################
-    ####### Read data and precompute ######
-    t0a=time.time()
-    img=np.load(gdict['ip_fname'],mmap_mode='r')[:gdict['num_imgs']]
-#     print("Shape of input file",img.shape)
-    img=f_get_img_samples(img,gdict['world_rank'],gdict['world_size'])  
-    
-    t_img=torch.from_numpy(img)
-    dataset=TensorDataset(t_img)
-    data_loader=DataLoader(dataset,batch_size=gdict['batch_size'],shuffle=True,num_workers=0,drop_last=True)
-    logging.info("Size of dataset for GPU %s : %s"%(gdict['world_rank'],len(data_loader.dataset)))
-    
-    t0b=time.time()
-    logging.info("Time for creating dataloader",t0b-t0a,gdict['world_rank'])
-    
-    # Precompute metrics with validation data for computing losses
-    with torch.no_grad():
-        val_img=np.load(gdict['ip_fname'],mmap_mode='r')[-100:].copy()
-        t_val_img=torch.from_numpy(val_img).to(gdict['device'])
-
-        # Precompute radial coordinates
-        r,ind=f_get_rad(val_img)
-        r=r.to(gdict['device']); ind=ind.to(gdict['device'])
-        # Stored mean and std of spectrum for full input data once
-        mean_spec_val,sdev_spec_val=f_torch_image_spectrum(f_invtransform(t_val_img),1,r,ind)
-        hist_val=f_compute_hist(t_val_img,bins=gdict['bns'])
-        del val_img; del t_val_img; del img;
-
-    return data_loader,mean_spec_val,sdev_spec_val,hist_val,r,ind
-
-def f_init_GAN(gdict,print_model=False):
-    # Define Models
-    logging.info("Building GAN networks")
-    # Create Generator
-    netG = Generator(gdict).to(gdict['device'])
-    netG.apply(weights_init)
-    # Create Discriminator
-    netD = Discriminator(gdict).to(gdict['device'])
-    netD.apply(weights_init)
-    
-    if print_model:
-        if gdict['world_rank']==0:
-            print(netG)
-        #     summary(netG,(1,1,64))
-            print(netD)
-        #     summary(netD,(1,128,128))
-            print("Number of GPUs used %s"%(gdict['ngpu']))
-
-    if (gdict['multi-gpu']):
-        if not gdict['distributed']:
-            netG = nn.DataParallel(netG, list(range(gdict['ngpu'])))
-            netD = nn.DataParallel(netD, list(range(gdict['ngpu'])))
-        else:
-            netG=DistributedDataParallel(netG,device_ids=[gdict['local_rank']],output_device=[gdict['local_rank']])
-            netD=DistributedDataParallel(netD,device_ids=[gdict['local_rank']],output_device=[gdict['local_rank']])
-    
-    #### Initialize networks ####
-    # criterion = nn.BCELoss()
-    criterion = nn.BCEWithLogitsLoss()
-
-    if gdict['mode']=='fresh':
-        optimizerD = optim.Adam(netD.parameters(), lr=gdict['learn_rate'], betas=(gdict['beta1'], 0.999),eps=1e-7)
-        optimizerG = optim.Adam(netG.parameters(), lr=gdict['learn_rate'], betas=(gdict['beta1'], 0.999),eps=1e-7)
-        ### Initialize variables      
-        iters,start_epoch,best_chi1,best_chi2=0,0,1e10,1e10    
-
-    ### Load network weights for continuing run
-    elif gdict['mode']=='continue':
-        iters,start_epoch,best_chi1,best_chi2=f_load_checkpoint(gdict['save_dir']+'/models/checkpoint_last.tar',netG,netD,optimizerG,optimizerD,gdict) 
-        logging.info("Continuing existing run. Loading checkpoint with epoch {0} and step {1}".format(start_epoch,iters))
-        start_epoch+=1  ## Start with the next epoch  
-
-    ## Add to gdict
-    for key,val in zip(['best_chi1','best_chi2','iters','start_epoch'],[best_chi1,best_chi2,iters,start_epoch]): gdict[key]=val
-
-    return netG,netD,criterion,optimizerD,optimizerG
-
+            
 def f_setup(gdict,log):
     ''' 
     Set up directories, Initialize random seeds, add GPU info, add logging info.
@@ -327,26 +225,144 @@ def f_setup(gdict,log):
         if gdict['world_rank']!=0:
                 logging.basicConfig(level=logging.DEBUG, filename=logfile, filemode="a+", format="%(asctime)-15s %(levelname)-8s %(message)s")
 
+def f_get_img_samples(ip_arr,rank=0,num_ranks=1):
+    '''
+    Module to get part of the numpy image file
+    '''
+    
+    data_size=ip_arr.shape[0]
+    size=data_size//num_ranks
+    
+    if gdict['batch_size']>size:
+        print("Caution: batchsize %s is greater than samples per GPU %s"%(gdict['batch_size'],size))
+        raise SystemExit
+        
+    ### Get a set of random indices from numpy array
+    random=False
+    if random:
+        idxs=np.arange(ip_arr.shape[0])
+        np.random.shuffle(idxs)
+        rnd_idxs=idxs[rank*(size):(rank+1)*size]
+        arr=ip_arr[rnd_idxs].copy()
+        
+    else: arr=ip_arr[rank*(size):(rank+1)*size].copy()
+    
+    return arr
+
+class Dataset:
+    def __init__(self,gdict):
+        '''
+        Load training dataset and compute spectrum and histogram for a small batch of training and validation dataset.
+        '''
+        ## Load training dataset
+        t0a=time.time()
+        img=np.load(gdict['ip_fname'],mmap_mode='r')[:gdict['num_imgs']]
+    #     print("Shape of input file",img.shape)
+        img=f_get_img_samples(img,gdict['world_rank'],gdict['world_size'])  
+
+        t_img=torch.from_numpy(img)
+        dataset=TensorDataset(t_img)
+        self.train_dataloader=DataLoader(dataset,batch_size=gdict['batch_size'],shuffle=True,num_workers=0,drop_last=True)
+        logging.info("Size of dataset for GPU %s : %s"%(gdict['world_rank'],len(self.train_dataloader.dataset)))
+
+        t0b=time.time()
+        logging.info("Time for creating dataloader",t0b-t0a,gdict['world_rank'])
+        
+        # Precompute spectrum and histogram for small training and validation data for computing losses
+        with torch.no_grad():
+            val_img=np.load(gdict['ip_fname'],mmap_mode='r')[-100:].copy()
+            t_val_img=torch.from_numpy(val_img).to(gdict['device'])
+            # Precompute radial coordinates
+            r,ind=f_get_rad(val_img)
+            self.r,self.ind=r.to(gdict['device']),ind.to(gdict['device'])
+
+            # Compute
+            self.train_spec_mean,self.train_spec_var=f_torch_image_spectrum(f_invtransform(t_val_img),1,self.r,self.ind)
+            self.train_hist=f_compute_hist(t_val_img,bins=gdict['bns'])
+            
+            # Repeat for validation dataset
+            val_img=np.load(gdict['ip_fname'],mmap_mode='r')[-200:-100].copy()
+            t_val_img=torch.from_numpy(val_img).to(gdict['device'])
+            
+            # Compute
+            self.val_spec_mean,self.val_spec_var=f_torch_image_spectrum(f_invtransform(t_val_img),1,self.r,self.ind)
+            self.val_hist=f_compute_hist(t_val_img,bins=gdict['bns'])
+            del val_img; del t_val_img; del img; del t_img;
+
+
+class GAN_model():
+    def __init__(self,gdict,print_model=False):
+    
+        def weights_init(m):
+            '''custom weights initialization called on netG and netD '''
+            classname = m.__class__.__name__
+            if classname.find('Conv') != -1:
+                nn.init.normal_(m.weight.data, 0.0, 0.02)
+            elif classname.find('BatchNorm') != -1:
+                nn.init.normal_(m.weight.data, 1.0, 0.02)
+                nn.init.constant_(m.bias.data, 0)
+        
+        # Create Generator
+        self.netG = Generator(gdict).to(gdict['device'])
+        self.netG.apply(weights_init)
+        # Create Discriminator
+        self.netD = Discriminator(gdict).to(gdict['device'])
+        self.netD.apply(weights_init)
+
+        if print_model:
+            if gdict['world_rank']==0:
+                print(self.netG)
+            #     summary(netG,(1,1,64))
+                print(self.netD)
+            #     summary(netD,(1,128,128))
+                print("Number of GPUs used %s"%(gdict['ngpu']))
+
+        if (gdict['multi-gpu']):
+            if not gdict['distributed']:
+                self.netG = nn.DataParallel(self.netG, list(range(gdict['ngpu'])))
+                self.netD = nn.DataParallel(self.netD, list(range(gdict['ngpu'])))
+            else:
+                self.netG=DistributedDataParallel(self.netG,device_ids=[gdict['local_rank']],output_device=[gdict['local_rank']])
+                self.netD=DistributedDataParallel(self.netD,device_ids=[gdict['local_rank']],output_device=[gdict['local_rank']])
+
+        #### Initialize networks ####
+        # self.criterion = nn.BCELoss()
+        self.criterion = nn.BCEWithLogitsLoss()
+
+        if gdict['mode']=='fresh':
+            self.optimizerD = optim.Adam(self.netD.parameters(), lr=gdict['learn_rate'], betas=(gdict['beta1'], 0.999),eps=1e-7)
+            self.optimizerG = optim.Adam(self.netG.parameters(), lr=gdict['learn_rate'], betas=(gdict['beta1'], 0.999),eps=1e-7)
+            ### Initialize variables      
+            iters,start_epoch,best_chi1,best_chi2=0,0,1e10,1e10    
+
+        ### Load network weights for continuing run
+        elif gdict['mode']=='continue':
+            iters,start_epoch,best_chi1,best_chi2=f_load_checkpoint(gdict['save_dir']+'/models/checkpoint_last.tar',self.netG,self.netD,self.optimizerG,self.optimizerD,gdict) 
+            logging.info("Continuing existing run. Loading checkpoint with epoch {0} and step {1}".format(start_epoch,iters))
+            start_epoch+=1  ## Start with the next epoch 
+
+        ## Add to gdict
+        for key,val in zip(['best_chi1','best_chi2','iters','start_epoch'],[best_chi1,best_chi2,iters,start_epoch]): gdict[key]=val
+
+
 ### Train code ###
 
-def f_train_loop(dataloader,metrics_df,gdict,fixed_noise,mean_spec_val,sdev_spec_val,hist_val,r,ind):
+def f_train_loop(gan_model,Dset,metrics_df,gdict,fixed_noise):
     ''' Train epochs '''
-#     print("Inside train loop")
-
     ## Define new variables from dict
     keys=['image_size','start_epoch','epochs','iters','best_chi1','best_chi2','save_dir','device','flip_prob','nz','batch_size','bns']
     image_size,start_epoch,epochs,iters,best_chi1,best_chi2,save_dir,device,flip_prob,nz,batchsize,bns=list(collections.OrderedDict({key:gdict[key] for key in keys}).values())
     
     for epoch in range(start_epoch,epochs):
         t_epoch_start=time.time()
-        for count, data in enumerate(dataloader):
+        for count, data in enumerate(Dset.train_dataloader):
 
             ####### Train GAN ########
-            netG.train(); netD.train();  ### Need to add these after inference and before training
+            gan_model.netG.train(); gan_model.netD.train();  ### Need to add these after inference and before training
 
             tme1=time.time()
             ### Update D network: maximize log(D(x)) + log(1 - D(G(z)))
-            netD.zero_grad()
+            gan_model.netD.zero_grad()
 
             real_cpu = data[0].to(device)
             real_cpu.requires_grad=True
@@ -360,17 +376,17 @@ def f_train_loop(dataloader,metrics_df,gdict,fixed_noise,mean_spec_val,sdev_spec
 
             # Generate fake image batch with G
             noise = torch.randn(b_size, 1, 1, 1, nz, device=device) ### Mod for 3D
-            fake = netG(noise)            
+            fake = gan_model.netG(noise)            
 
             # Forward pass real batch through D
-            real_output = netD(real_cpu)
-            errD_real = criterion(real_output[-1].view(-1), real_label.float())
+            real_output = gan_model.netD(real_cpu)
+            errD_real = gan_model.criterion(real_output[-1].view(-1), real_label.float())
             errD_real.backward(retain_graph=True)
             D_x = real_output[-1].mean().item()
 
             # Forward pass fake batch through D
-            fake_output = netD(fake.detach())   # The detach is important
-            errD_fake = criterion(fake_output[-1].view(-1), fake_label.float())
+            fake_output = gan_model.netD(fake.detach())   # The detach is important
+            errD_fake = gan_model.criterion(fake_output[-1].view(-1), fake_label.float())
             errD_fake.backward(retain_graph=True)
             D_G_z1 = fake_output[-1].mean().item()
             
@@ -385,22 +401,23 @@ def f_train_loop(dataloader,metrics_df,gdict,fixed_noise,mean_spec_val,sdev_spec
                 gp_loss=torch.Tensor([np.nan])
                 
             if gdict['grad_clip']:
-                nn.utils.clip_grad_norm_(netD.parameters(),gdict['grad_clip'])
+                nn.utils.clip_grad_norm_(gan_model.netD.parameters(),gdict['grad_clip'])
 
-            optimizerD.step()
+            gan_model.optimizerD.step()
+# dict_keys(['train_data_loader', 'r', 'ind', 'train_spec_mean', 'train_spec_var', 'train_hist', 'val_spec_mean', 'val_spec_var', 'val_hist'])
 
             ###Update G network: maximize log(D(G(z)))
-            netG.zero_grad()
-            output = netD(fake)
-            errG_adv = criterion(output[-1].view(-1), g_label.float())
+            gan_model.netG.zero_grad()
+            output = gan_model.netD(fake)
+            errG_adv = gan_model.criterion(output[-1].view(-1), g_label.float())
 #             errG_adv.backward(retain_graph=True)
             # Histogram pixel intensity loss
             hist_gen=f_compute_hist(fake,bins=bns)
-            hist_loss=loss_hist(hist_gen,hist_val.to(device))
+            hist_loss=loss_hist(hist_gen,Dset.train_hist.to(device))
 
             # Add spectral loss
-            mean,sdev=f_torch_image_spectrum(f_invtransform(fake),1,r.to(device),ind.to(device))
-            spec_loss=loss_spectrum(mean,mean_spec_val.to(device),sdev,sdev_spec_val.to(device),image_size,gdict['lambda_spec_mean'],gdict['lambda_spec_var'])
+            mean,var=f_torch_image_spectrum(f_invtransform(fake),1,Dset.r.to(device),Dset.ind.to(device))
+            spec_loss=loss_spectrum(mean,Dset.train_spec_mean.to(device),var,Dset.train_spec_var.to(device),image_size,gdict['lambda_spec_mean'],gdict['lambda_spec_var'])
 
             errG=errG_adv
             if gdict['lambda_spec_mean']: 
@@ -423,9 +440,9 @@ def f_train_loop(dataloader,metrics_df,gdict,fixed_noise,mean_spec_val,sdev_spec
             
             ### Implement Gradient clipping
             if gdict['grad_clip']:
-                nn.utils.clip_grad_norm_(netG.parameters(),gdict['grad_clip'])
+                nn.utils.clip_grad_norm_(gan_model.netG.parameters(),gdict['grad_clip'])
             
-            optimizerG.step()
+            gan_model.optimizerG.step()
 
             tme2=time.time()
             ####### Store metrics ########
@@ -433,7 +450,7 @@ def f_train_loop(dataloader,metrics_df,gdict,fixed_noise,mean_spec_val,sdev_spec
             if gdict['world_rank']==0:
                 if ((count % gdict['checkpoint_size'] == 0)):
                     logging.info('[%d/%d][%d/%d]\tLoss_D: %.4f\tLoss_adv: %.4f\tLoss_G: %.4f\tD(x): %.4f\tD(G(z)): %.4f / %.4f'
-                          % (epoch, epochs, count, len(dataloader), errD.item(), errG_adv.item(),errG.item(), D_x, D_G_z1, D_G_z2)),
+                          % (epoch, epochs, count, len(Dset.train_dataloader), errD.item(), errG_adv.item(),errG.item(), D_x, D_G_z1, D_G_z2)),
                     logging.info("Spec loss: %s,\t hist loss: %s"%(spec_loss.item(),hist_loss.item())),
                     logging.info("Training time for step %s : %s"%(iters, tme2-tme1))
 
@@ -447,41 +464,42 @@ def f_train_loop(dataloader,metrics_df,gdict,fixed_noise,mean_spec_val,sdev_spec
                 iters += 1  ### Model has been updated, so update iters before saving metrics and model.
 
                 ### Compute validation metrics for updated model
-                netG.eval()
+                gan_model.netG.eval()
                 with torch.no_grad():
-                    fake = netG(fixed_noise)
+                    fake = gan_model.netG(fixed_noise)
                     hist_gen=f_compute_hist(fake,bins=bns)
-                    hist_chi=loss_hist(hist_gen,hist_val.to(device))
-                    mean,sdev=f_torch_image_spectrum(f_invtransform(fake),1,r.to(device),ind.to(device))
-                    spec_chi=loss_spectrum(mean,mean_spec_val.to(device),sdev,sdev_spec_val.to(device),image_size,gdict['lambda_spec_mean'],gdict['lambda_spec_var'])      
+                    hist_chi=loss_hist(hist_gen,Dset.val_hist.to(device))
+                    mean,var=f_torch_image_spectrum(f_invtransform(fake),1,Dset.r.to(device),Dset.ind.to(device))
+                    spec_chi=loss_spectrum(mean,Dset.val_spec_mean.to(device),var,Dset.val_spec_var.to(device),image_size,gdict['lambda_spec_mean'],gdict['lambda_spec_var'])
+
                 # Storing chi for next step
                 for col,val in zip(['spec_chi','hist_chi'],[spec_chi.item(),hist_chi.item()]):  metrics_df.loc[iters,col]=val            
 
                 # Checkpoint model for continuing run
-                if count == len(dataloader)-1: ## Check point at last step of epoch
-                    f_save_checkpoint(gdict,epoch,iters,best_chi1,best_chi2,netG,netD,optimizerG,optimizerD,save_loc=save_dir+'/models/checkpoint_last.tar')  
+                if count == len(Dset.train_dataloader)-1: ## Check point at last step of epoch
+                    f_save_checkpoint(gdict,epoch,iters,best_chi1,best_chi2,gan_model.netG,gan_model.netD,gan_model.optimizerG,gan_model.optimizerD,save_loc=save_dir+'/models/checkpoint_last.tar')  
 
                 if (checkpoint and (epoch > 1)): # Choose best models by metric
                     if hist_chi< best_chi1:
-                        f_save_checkpoint(gdict,epoch,iters,best_chi1,best_chi2,netG,netD,optimizerG,optimizerD,save_loc=save_dir+'/models/checkpoint_best_hist.tar')
+                        f_save_checkpoint(gdict,epoch,iters,best_chi1,best_chi2,gan_model.netG,gan_model.netD,gan_model.optimizerG,gan_model.optimizerD,save_loc=save_dir+'/models/checkpoint_best_hist.tar')
                         best_chi1=hist_chi.item()
                         logging.info("Saving best hist model at epoch %s, step %s."%(epoch,iters))
 
                     if  spec_chi< best_chi2:
-                        f_save_checkpoint(gdict,epoch,iters,best_chi1,best_chi2,netG,netD,optimizerG,optimizerD,save_loc=save_dir+'/models/checkpoint_best_spec.tar')
+                        f_save_checkpoint(gdict,epoch,iters,best_chi1,best_chi2,gan_model.netG,gan_model.netD,gan_model.optimizerG,gan_model.optimizerD,save_loc=save_dir+'/models/checkpoint_best_spec.tar')
                         best_chi2=spec_chi.item()
                         logging.info("Saving best spec model at epoch %s, step %s"%(epoch,iters))
 
 #                    if (iters in gdict['save_steps_list']) :
                     if ((gdict['save_steps_list']=='all') and (iters % gdict['checkpoint_size'] == 0)):
-                        f_save_checkpoint(gdict,epoch,iters,best_chi1,best_chi2,netG,netD,optimizerG,optimizerD,save_loc=save_dir+'/models/checkpoint_{0}.tar'.format(iters))
+                        f_save_checkpoint(gdict,epoch,iters,best_chi1,best_chi2,gan_model.netG,gan_model.netD,gan_model.optimizerG,gan_model.optimizerD,save_loc=save_dir+'/models/checkpoint_{0}.tar'.format(iters))
                         logging.info("Saving given-step at epoch %s, step %s."%(epoch,iters))
 
                 # Save G's output on fixed_noise
-                if ((iters % gdict['checkpoint_size'] == 0) or ((epoch == epochs-1) and (count == len(dataloader)-1))):
-                    netG.eval()
+                if ((iters % gdict['checkpoint_size'] == 0) or ((epoch == epochs-1) and (count == len(Dset.train_dataloader)-1))):
+                    gan_model.netG.eval()
                     with torch.no_grad():
-                        fake = netG(fixed_noise).detach().cpu()
+                        fake = gan_model.netG(fixed_noise).detach().cpu()
                         img_arr=np.array(fake)
                         fname='gen_img_epoch-%s_step-%s'%(epoch,iters)
                         np.save(save_dir+'/images/'+fname,img_arr)
@@ -500,7 +518,7 @@ def f_train_loop(dataloader,metrics_df,gdict,fixed_noise,mean_spec_val,sdev_spec
 
 if __name__=="__main__":
     jpt=False
-#     jpt=True ##(different for jupyter notebook)s
+#     jpt=True ##(different for jupyter notebook)
     t0=time.time()
     args=f_parse_args() if not jpt else f_manual_add_argparse()
 
@@ -517,14 +535,14 @@ if __name__=="__main__":
     f_setup(gdict,log=(not jpt))
     
     ## Build GAN
-    netG,netD,criterion,optimizerD,optimizerG=f_init_GAN(gdict,print_model=False)
+    gan_model=GAN_model(gdict,False)
     fixed_noise = torch.randn(gdict['op_size'], 1, 1, 1, gdict['nz'], device=gdict['device']) #Latent vectors to view G progress    # Mod for 3D
 
     if gdict['distributed']:  try_barrier(gdict['world_rank'])
 
     ## Load data and precompute
-    dataloader,mean_spec_val,sdev_spec_val,hist_val,r,ind=f_load_data_precompute(gdict)
-
+    Dset=Dataset(gdict)
+    
     #################################
     ########## Train loop and save metrics and images ######
     ### Set up metrics dataframe
@@ -534,18 +552,20 @@ if __name__=="__main__":
 
 #     print(gdict)
     logging.info("Starting Training Loop...")
-    f_train_loop(dataloader,metrics_df,gdict,fixed_noise,mean_spec_val,sdev_spec_val,hist_val,r,ind)
+    f_train_loop(gan_model,Dset,metrics_df,gdict,fixed_noise)
     
     if gdict['world_rank']==0: ## Generate images for best saved models ######
         op_loc=gdict['save_dir']+'/images/'
         ip_fname=gdict['save_dir']+'/models/checkpoint_best_spec.tar'
-        f_gen_images(gdict,netG,optimizerG,ip_fname,op_loc,op_strg='best_spec',op_size=32)
+        f_gen_images(gdict,gan_model.netG,gan_model.optimizerG,ip_fname,op_loc,op_strg='best_spec',op_size=100)
         ip_fname=gdict['save_dir']+'/models/checkpoint_best_hist.tar'
-        f_gen_images(gdict,netG,optimizerG,ip_fname,op_loc,op_strg='best_hist',op_size=32)
+        f_gen_images(gdict,gan_model.netG,gan_model.optimizerG,ip_fname,op_loc,op_strg='best_hist',op_size=100)
     
     tf=time.time()
     logging.info("Total time %s"%(tf-t0))
     logging.info('End: %s'%(datetime.now().strftime('%Y-%m-%d  %H:%M:%S')))
+
+
 
 
 
