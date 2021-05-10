@@ -282,11 +282,12 @@ class Dataset:
 
         dataset=TensorDataset(t_img,cosm_params)
         self.train_dataloader=DataLoader(dataset,batch_size=gdict['batch_size'],shuffle=True,num_workers=0,drop_last=True)
-        print("Size of dataset for GPU %s : %s"%(gdict['world_rank'],len(self.train_dataloader.dataset)))
+        logging.info("Size of dataset for GPU %s : %s"%(gdict['world_rank'],len(self.train_dataloader.dataset)))
 
         t0b=time.time()
-        print("Time for creating dataloader",t0b-t0a,gdict['world_rank'])
-        
+        logging.info("Time for creating dataloader %s for rank %s"%(t0b-t0a,gdict['world_rank']))
+
+
         # Precompute spectrum and histogram for small training and validation data for computing losses           
         def f_compute_summary_stats(idx1=-50,idx2=None):
             # Compute hist and spec for given dataset
