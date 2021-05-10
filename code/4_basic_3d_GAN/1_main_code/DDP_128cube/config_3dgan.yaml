@@ -4,7 +4,7 @@ parameters:
     ip_fname: '/global/cfs/cdirs/m3363/vayyar/cosmogan_data/raw_data/3d_data/dataset3_smoothing_const_params_128cube/norm_1_train_val.npy'
     op_loc: '/global/cfs/cdirs/m3363/vayyar/cosmogan_data/results_from_other_code/pytorch/results/3d/'
     image_size: 128
-    num_imgs: 70000
+    num_imgs: 10000
 
     workers: 2 #Number of workers for dataloader
     nc: 1 # Number of channels in the training images. For color images this is 3
@@ -19,10 +19,10 @@ parameters:
     flip_prob: 0.01
     bns: 50
 
-    checkpoint_size: 1
+    checkpoint_size: 10
     
-    batch_size: 2
-    epochs: 5
+    batch_size: 16
+    epochs: 100
     learn_rate: 0.0002
     op_size: 8
     
@@ -32,8 +32,8 @@ parameters:
     lambda_spec_var: 0.1
     lambda_fm: 0.0 ## Enter False or float
     lambda_gp: 0.0 ## Enter False or float
-    grad_clip: 0.0
+    grad_clip: 0.5
     save_steps_list: 'all'
-    run_suffix: train
+    run_suffix: train_128cube_bs16_lr0.0002
 
     description: '3d GAN: DDP with new loss'
