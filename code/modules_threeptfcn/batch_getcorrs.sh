@@ -33,8 +33,10 @@ code_dir='/global/u1/v/vpa/project/jpt_notebooks/Cosmology/Cosmo_GAN/repositorie
 # shifter python $code_dir/compute_3pct_single_file.py --nprocs 32 -n 3 --img_slice 32 --start_i 0 --end_i 32 -f /global/cfs/cdirs/m3363/vayyar/cosmogan_data/raw_data/3d_data/dataset3_smoothing_4univ_cgan_varying_sigma_128cube/Om0.3_Sg0.8_H70.0.npy -sfx 3d_val_0.8
 
 ## 3D validation data
-# shifter python $code_dir/compute_3pct_single_file.py --nprocs 32 -n 3 --img_slice 32 --start_i 0 --end_i 32 -f /global/cfs/cdirs/m3363/vayyar/cosmogan_data/raw_data/3d_data/dataset1_smoothing_const_params_64cube_100k/val.npy -sfx 3d_dset1
+#shifter python $code_dir/compute_3pct_single_file.py --nprocs 32 -n 3 --img_slice 16 --start_i 0 --end_i 32 -f /global/cfs/cdirs/m3363/vayyar/cosmogan_data/raw_data/3d_data/dataset1_smoothing_const_params_64cube_100k/val.npy -sfx 3d_dset1
 
-python $code_dir/compute_3pct_parallelize_single_img.py --nprocs 32 -n 3 --img_slice 16 --start_i 0 --end_i 12 -f /global/cfs/cdirs/m3363/vayyar/cosmogan_data/raw_data/3d_data/dataset1_smoothing_const_params_64cube_100k/val.npy -sfx 3d_dset1 -invtf
+python $code_dir/compute_3pct_single_file.py --nprocs 32 -n 3 --img_slice 16 --start_i 0 --end_i 32 -f /global/cfs/cdirs/m3363/vayyar/cosmogan_data/raw_data/3d_data/dataset1_smoothing_const_params_64cube_100k/val.npy -sfx 3d_dset1
+
+#python $code_dir/compute_3pct_parallelize_single_img.py --nprocs 32 -n 3 --img_slice 16 --start_i 0 --end_i 12 -f /global/cfs/cdirs/m3363/vayyar/cosmogan_data/raw_data/3d_data/dataset1_smoothing_const_params_64cube_100k/val.npy -sfx 3d_dset1 -invtf
 
 echo "--end date" `date` `date +%s`
