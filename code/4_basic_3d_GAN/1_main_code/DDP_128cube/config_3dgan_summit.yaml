@@ -4,7 +4,7 @@ parameters:
     ip_fname: '/gpfs/alpine/ast153/proj-shared/venkitesh/Cosmogan/data/raw_data/3d_data/128cube/dataset3_smoothing_const_params_128cube/norm_1_train_val.npy'
     op_loc: '/gpfs/alpine/ast153/proj-shared/venkitesh/Cosmogan/data/results_pytorch/3d/'
     image_size: 128
-    num_imgs: 90000
+    num_imgs: 15000
 
     workers: 2 #Number of workers for dataloader
     nc: 1 # Number of channels in the training images. For color images this is 3
@@ -19,12 +19,12 @@ parameters:
     flip_prob: 0.01
     bns: 50
 
-    checkpoint_size: 1
-    batch_size: 8
-    epochs: 100
-    learn_rate: 0.0001
-    op_size: 32
+    checkpoint_size: 10
+    batch_size: 4
 
+    epochs: 150
+    learn_rate: 0.00003
+    op_size: 32
 
     deterministic: False
     seed: 234373
@@ -32,8 +32,8 @@ parameters:
     lambda_spec_var: 0.1
     lambda_fm: 0.0 ## Enter False or float
     lambda_gp: 0.0 ## Enter False or float
-    grad_clip: 1.0
-    save_steps_list: [5,10]
-    run_suffix: bs8_lr0.0001_nodes8
+    grad_clip: 0.5
+    save_steps_list: ' '
+    run_suffix: 128cube_bs4_lr0.00003_nodes8
 
     description: '3d GAN: DDP with new loss'
