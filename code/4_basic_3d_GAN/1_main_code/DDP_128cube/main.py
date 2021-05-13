@@ -503,6 +503,11 @@ def f_train_loop(gan_model,Dset,metrics_df,gdict,fixed_noise):
                         img_arr=np.array(fake)
                         fname='gen_img_epoch-%s_step-%s'%(epoch,iters)
                         np.save(save_dir+'/images/'+fname,img_arr)
+                
+                if ((count % gdict['checkpoint_size'] == 0)):
+                    tme3=time.time()
+                    logging.info("Post training time for step %s : %s"%(iters, tme3-tme2))
+        
         
         t_epoch_end=time.time()
         if gdict['world_rank']==0:
