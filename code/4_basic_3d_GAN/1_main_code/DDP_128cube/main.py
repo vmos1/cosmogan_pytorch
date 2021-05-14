@@ -562,9 +562,9 @@ if __name__=="__main__":
     if gdict['world_rank']==0: ## Generate images for best saved models ######
         op_loc=gdict['save_dir']+'/images/'
         ip_fname=gdict['save_dir']+'/models/checkpoint_best_spec.tar'
-        f_gen_images(gdict,gan_model.netG,gan_model.optimizerG,ip_fname,op_loc,op_strg='best_spec',op_size=100)
+        f_gen_images(gdict,gan_model.netG,gan_model.optimizerG,ip_fname,op_loc,op_strg='best_spec',op_size=gdict['op_size'])
         ip_fname=gdict['save_dir']+'/models/checkpoint_best_hist.tar'
-        f_gen_images(gdict,gan_model.netG,gan_model.optimizerG,ip_fname,op_loc,op_strg='best_hist',op_size=100)
+        f_gen_images(gdict,gan_model.netG,gan_model.optimizerG,ip_fname,op_loc,op_strg='best_hist',op_size=gdict['op_size'])
     
     tf=time.time()
     logging.info("Total time %s"%(tf-t0))
