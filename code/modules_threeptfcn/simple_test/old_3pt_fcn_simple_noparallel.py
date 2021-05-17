@@ -14,7 +14,6 @@ import time
 import argparse
 import os
 import glob
-from mpi4py import MPI
 
 ### Modules #####
 
@@ -25,7 +24,7 @@ def f_transform(x):
 def f_invtransform(s):
     return 4.*(1. + s)/(1. - s + 1e-10)
 
-def f_make_catalog_3d(img,comm):
+def f_make_catalog_3d(img):
     
     x=np.arange(img.shape[0]) 
     y=np.arange(img.shape[1])
@@ -36,14 +35,7 @@ def f_make_catalog_3d(img,comm):
     ip_dict={}
     ip_dict['Position'] = coord
     ip_dict['Mass'] = img.flatten()
-    if comm.rank==0:
-        catalog=ArrayCatalog(ip_dict)
-    
-    else:
-        empty_dict={}
-        empty_dict['Position']=coord[:0]
-        empty_dict['Mass']=img.flatten()[:0]
-        catalog = ArrayCatalog(empty_dict) 
+    catalog=ArrayCatalog(ip_dict)
     
     return catalog
 
@@ -64,7 +56,7 @@ def f_parse_args():
 
     return parser.parse_args()
 
-def f_write_corr(img_index,a1,num_corrs,edge_size,box_size,slice_idx,data_dir,suffix,comm):
+def f_write_corr(img_index,a1,num_corrs,edge_size,box_size,slice_idx,data_dir,suffix):
     '''
     Compute 3ptfcn for a given image index and write to file
     '''
@@ -75,7 +67,7 @@ def f_write_corr(img_index,a1,num_corrs,edge_size,box_size,slice_idx,data_dir,su
     elif len(a1.shape)-1==3:
 #         print("Image is 3d")
         img=a1[img_index,:slice_idx,:slice_idx,:slice_idx]
-        cat1=f_make_catalog_3d(img,comm)
+        cat1=f_make_catalog_3d(img)
     
     ## compute 3 ptfnc
     t1=time.time()
@@ -87,21 +79,19 @@ def f_write_corr(img_index,a1,num_corrs,edge_size,box_size,slice_idx,data_dir,su
     print("Time 2 for index {0}: {1}".format(img_index,t3-t2))
 
     ### Extract and Save correlators as 3D array to file
-    if comm.rank==0:
-        corr_list=[]
-        for i in op1.variables:  
-            corr_list.append(op1[i]) 
-        
-        arr=np.array(corr_list)
-        print(arr.shape)
-        ## Save correlators
-        fname='img_'+str(img_index)+'-corr_'+suffix+'.npy'
-        np.save(data_dir+fname,arr)
+    corr_list=[]
+    for i in op1.variables:  
+        corr_list.append(op1[i]) 
+    
+    arr=np.array(corr_list)
+    print(arr.shape)
+    ## Save correlators
+    fname='img_'+str(img_index)+'-corr_'+suffix+'.npy'
+    np.save(data_dir+fname,arr)
 
    
 if __name__=="__main__":
-   
-    comm=MPI.COMM_WORLD 
+    
     args=f_parse_args()
     print(args)
     img_slice=args.img_slice
@@ -135,4 +125,4 @@ if __name__=="__main__":
     a1=f_invtransform(a1) # Generated images need to be inv transformed
 
     # Compute correlator
-    f_write_corr(0,a1,num_corrs,edge_size,box_size,slice_idx=img_slice,data_dir=data_dir,suffix=name_suffix,comm=comm)
+    f_write_corr(0,a1,num_corrs,edge_size,box_size,slice_idx=img_slice,data_dir=data_dir,suffix=name_suffix)
