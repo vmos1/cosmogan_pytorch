@@ -89,23 +89,23 @@ def f_torch_get_azimuthalAverage(image,r,ind):
     """
     Calculate the azimuthally averaged radial profile.
 
-    image - The 2D image
-    center - The [x,y] pixel coordinates used as the center. The default is 
+    image - The 3D image
+    center - The [x,y,z] pixel coordinates used as the center. The default is 
              None, which then uses the center of the image (including 
              fracitonal pixels).
     source: https://www.astrobetter.com/blog/2010/03/03/fourier-transforms-of-images-in-python/
     """
     
-#     height, width = image.shape
-#     # Create a grid of points with x and y coordinates
-#     y, x = np.indices([height,width])
-
+#     # Create a grid of points with x and y and z coordinates
+#     z,y,x = np.indices([height,width,depth])
+    
+#     center=[]
 #     if not center:
-#         center = np.array([(x.max()-x.min())/2.0, (y.max()-y.min())/2.0])
+#         center = np.array([(x.max()-x.min())/2.0, (y.max()-y.min())/2.0, (z.max()-z.min())/2.0])
 
 #     # Get the radial coordinate for every grid point. Array has the shape of image
-#     r = torch.tensor(np.hypot(x - center[0], y - center[1]))
-
+#     r= torch.tensor(np.sqrt((x-center[0])**2 + (y-center[1])**2 + (z-center[2])**2))
+        
 #     # Get sorted radii
 #     ind = torch.argsort(torch.reshape(r, (-1,)))
 
