@@ -16,8 +16,9 @@ source /global/common/software/m3035/conda-activate.sh 3.7
 #bcast-pip https://github.com/bccp/nbodykit/archive/master.zip
 
 code_dir='/global/u1/v/vpa/project/jpt_notebooks/Cosmology/Cosmo_GAN/repositories/cosmogan_pytorch/code/modules_threeptfcn/simple_test'
+I=$1 # Image index
 
-srun -n 8 python $code_dir/3pt_fcn_simple.py -n 12 --img_slice 16 -idx 0 -f /global/cfs/cdirs/m3363/vayyar/cosmogan_data/raw_data/3d_data/dataset1_smoothing_const_params_64cube_100k/val.npy -sfx 3d_dset1
+srun -n 8 python $code_dir/3pt_fcn_simple.py -n 8 --img_slice 16 -idx $I -f /global/cfs/cdirs/m3363/vayyar/cosmogan_data/raw_data/3d_data/dataset1_smoothing_const_params_64cube_100k/val.npy -sfx 3d_dset1
 #srun -n 1 python $code_dir/old_3pt_fcn_simple_noparallel.py -n 12 --img_slice 16 -idx 0 -f /global/cfs/cdirs/m3363/vayyar/cosmogan_data/raw_data/3d_data/dataset1_smoothing_const_params_64cube_100k/val.npy -sfx 3d_dset1
 
 echo "--end date" `date` `date +%s`

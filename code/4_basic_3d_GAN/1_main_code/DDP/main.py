@@ -334,7 +334,7 @@ class GAN_model():
             self.optimizerG = optim.Adam(self.netG.parameters(), lr=gdict['learn_rate'], betas=(gdict['beta1'], 0.999),eps=1e-7)
             
             lr_stepsize=int(gdict['num_imgs']/(gdict['batch_size']*gdict['world_size']))+1
-            lr_epochs=[i*lr_stepsize*5 for i in range(1,11)] # Change lr every 5 epochs
+            lr_epochs=[i*lr_stepsize*5 for i in [1,2,10,17,20,21,21,23]] # Change lr every 5 epochs
             self.schedulerD = optim.lr_scheduler.MultiStepLR(self.optimizerD, milestones=lr_epochs,gamma=0.5)
             self.schedulerG = optim.lr_scheduler.MultiStepLR(self.optimizerD, milestones=lr_epochs,gamma=0.5)
 #             self.schedulerD = optim.lr_scheduler.StepLR(self.optimizerD, step_size=gdict['lr_stepsize'],gamma=0.5)
