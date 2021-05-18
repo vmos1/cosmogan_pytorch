@@ -266,7 +266,7 @@ class Dataset:
         logging.info("Size of dataset for GPU %s : %s"%(gdict['world_rank'],len(self.train_dataloader.dataset)))
 
         t0b=time.time()
-        logging.info("Time for creating dataloader",t0b-t0a,gdict['world_rank'])
+        logging.info("Time for creating dataloader %s for rank %s"%(t0b-t0a,gdict['world_rank']))
         
         # Precompute spectrum and histogram for small training and validation data for computing losses
         with torch.no_grad():
