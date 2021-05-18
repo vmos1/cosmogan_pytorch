@@ -332,6 +332,13 @@ class GAN_model():
         if gdict['mode']=='fresh':
             self.optimizerD = optim.Adam(self.netD.parameters(), lr=gdict['learn_rate'], betas=(gdict['beta1'], 0.999),eps=1e-7)
             self.optimizerG = optim.Adam(self.netG.parameters(), lr=gdict['learn_rate'], betas=(gdict['beta1'], 0.999),eps=1e-7)
+            
+            lr_stepsize=int(gdict['num_imgs']/(gdict['batch_size']*gdict['world_size']))+1
+            lr_epochs=[i*lr_stepsize*5 for i in range(1,11)] # Change lr every 5 epochs
+            self.schedulerD = optim.lr_scheduler.MultiStepLR(self.optimizerD, milestones=lr_epochs,gamma=0.5)
+            self.schedulerG = optim.lr_scheduler.MultiStepLR(self.optimizerD, milestones=lr_epochs,gamma=0.5)
+#             self.schedulerD = optim.lr_scheduler.StepLR(self.optimizerD, step_size=gdict['lr_stepsize'],gamma=0.5)
+
             ### Initialize variables      
             iters,start_epoch,best_chi1,best_chi2=0,0,1e10,1e10    
 
@@ -404,6 +411,9 @@ def f_train_loop(gan_model,Dset,metrics_df,gdict,fixed_noise):
                 nn.utils.clip_grad_norm_(gan_model.netD.parameters(),gdict['grad_clip'])
 
             gan_model.optimizerD.step()
+            lr_d=gan_model.optimizerD.param_groups[0]['lr']
+            gan_model.schedulerD.step()
+            
 # dict_keys(['train_data_loader', 'r', 'ind', 'train_spec_mean', 'train_spec_var', 'train_hist', 'val_spec_mean', 'val_spec_var', 'val_hist'])
 
             ###Update G network: maximize log(D(G(z)))
@@ -443,7 +453,9 @@ def f_train_loop(gan_model,Dset,metrics_df,gdict,fixed_noise):
                 nn.utils.clip_grad_norm_(gan_model.netG.parameters(),gdict['grad_clip'])
             
             gan_model.optimizerG.step()
-
+            lr_g=gan_model.optimizerG.param_groups[0]['lr']
+            gan_model.schedulerG.step()
+            
             tme2=time.time()
             ####### Store metrics ########
             # Output training stats
@@ -455,8 +467,8 @@ def f_train_loop(gan_model,Dset,metrics_df,gdict,fixed_noise):
                     logging.info("Training time for step %s : %s"%(iters, tme2-tme1))
 
                 # Save metrics
-                cols=['step','epoch','Dreal','Dfake','Dfull','G_adv','G_full','spec_loss','hist_loss','fm_loss','gp_loss','D(x)','D_G_z1','D_G_z2','time']
-                vals=[iters,epoch,errD_real.item(),errD_fake.item(),errD.item(),errG_adv.item(),errG.item(),spec_loss.item(),hist_loss.item(),fm_loss.item(),gp_loss.item(),D_x,D_G_z1,D_G_z2,tme2-tme1]
+                cols=['step','epoch','Dreal','Dfake','Dfull','G_adv','G_full','spec_loss','hist_loss','fm_loss','gp_loss','D(x)','D_G_z1','D_G_z2','lr_d','lr_g','time']
+                vals=[iters,epoch,errD_real.item(),errD_fake.item(),errD.item(),errG_adv.item(),errG.item(),spec_loss.item(),hist_loss.item(),fm_loss.item(),gp_loss.item(),D_x,D_G_z1,D_G_z2,lr_d,lr_g,tme2-tme1]
                 for col,val in zip(cols,vals):  metrics_df.loc[iters,col]=val
 
                 ### Checkpoint the best model
