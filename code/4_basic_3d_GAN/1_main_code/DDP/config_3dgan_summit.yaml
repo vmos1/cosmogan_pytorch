@@ -24,6 +24,8 @@ parameters:
     epochs: 150
     learn_rate: 0.001
     op_size: 32
+    lr_epochs: [5,10,15, 70,80,90]
+    lr_gamma: 0.5
     
     deterministic: False
     seed: 234373
