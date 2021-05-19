@@ -336,7 +336,7 @@ class GAN_model():
             lr_stepsize=int(gdict['num_imgs']/(gdict['batch_size']*gdict['world_size']))+1
             lr_epochs=[i*lr_stepsize for i in gdict['lr_epochs']] # Change lr every few epochs
             self.schedulerD = optim.lr_scheduler.MultiStepLR(self.optimizerD, milestones=lr_epochs,gamma=gdict['lr_gamma'])
-            self.schedulerG = optim.lr_scheduler.MultiStepLR(self.optimizerD, milestones=lr_epochs,gamma=gdict['lr_gamma'])
+            self.schedulerG = optim.lr_scheduler.MultiStepLR(self.optimizerG, milestones=lr_epochs,gamma=gdict['lr_gamma'])
 
             ### Initialize variables      
             iters,start_epoch,best_chi1,best_chi2=0,0,1e10,1e10    
