@@ -330,13 +330,15 @@ class GAN_model():
         self.criterion = nn.BCEWithLogitsLoss()
 
         if gdict['mode']=='fresh':
-            self.optimizerD = optim.Adam(self.netD.parameters(), lr=gdict['learn_rate'], betas=(gdict['beta1'], 0.999),eps=1e-7)
-            self.optimizerG = optim.Adam(self.netG.parameters(), lr=gdict['learn_rate'], betas=(gdict['beta1'], 0.999),eps=1e-7)
+            self.optimizerD = optim.Adam(self.netD.parameters(), lr=gdict['learn_rate_d'], betas=(gdict['beta1'], 0.999),eps=1e-7)
+            self.optimizerG = optim.Adam(self.netG.parameters(), lr=gdict['learn_rate_g'], betas=(gdict['beta1'], 0.999),eps=1e-7)
             
-            lr_stepsize=int(gdict['num_imgs']/(gdict['batch_size']*gdict['world_size']))+1
-            lr_epochs=[i*lr_stepsize for i in gdict['lr_epochs']] # Change lr every few epochs
-            self.schedulerD = optim.lr_scheduler.MultiStepLR(self.optimizerD, milestones=lr_epochs,gamma=gdict['lr_gamma'])
-            self.schedulerG = optim.lr_scheduler.MultiStepLR(self.optimizerG, milestones=lr_epochs,gamma=gdict['lr_gamma'])
+            ## Set up learn rate scheduler
+            lr_stepsize=int(gdict['num_imgs']/(gdict['batch_size']*gdict['world_size']))+1 # convert epoch number to step 
+            lr_d_epochs=[i*lr_stepsize for i in gdict['lr_d_epochs']] 
+            lr_g_epochs=[i*lr_stepsize for i in gdict['lr_g_epochs']]
+            self.schedulerD = optim.lr_scheduler.MultiStepLR(self.optimizerD, milestones=lr_d_epochs,gamma=gdict['lr_d_gamma'])
+            self.schedulerG = optim.lr_scheduler.MultiStepLR(self.optimizerG, milestones=lr_g_epochs,gamma=gdict['lr_g_gamma'])
 
             ### Initialize variables      
             iters,start_epoch,best_chi1,best_chi2=0,0,1e10,1e10    

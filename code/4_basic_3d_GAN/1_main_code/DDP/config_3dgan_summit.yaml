@@ -22,10 +22,14 @@ parameters:
     checkpoint_size: 10
     batch_size: 8
     epochs: 150
-    learn_rate: 0.001
     op_size: 32
-    lr_epochs: [5,10,15, 70,80,90]
-    lr_gamma: 0.5
+    
+    learn_rate_d: 0.0003
+    learn_rate_g: 0.0003
+    lr_d_epochs: [5,10,15]
+    lr_d_gamma: 1.0
+    lr_g_epochs: [5,10,15]
+    lr_g_gamma: 1.0
     
     deterministic: False
     seed: 234373
@@ -35,6 +39,6 @@ parameters:
     lambda_gp: 0.0 ## Enter False or float
     grad_clip: 0.5
     save_steps_list: ' '
-    run_suffix: bs8_lr0.001_nodes8_spec0.1
+    run_suffix: bs8_lr0.0003_nodes8_spec0.1
 
     description: '3d GAN: DDP with new loss'
