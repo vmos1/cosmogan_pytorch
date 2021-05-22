@@ -28,10 +28,10 @@ parameters:
     op_size: 32
     
     learn_rate_d: 0.001
-    learn_rate_g: 0.001
+    learn_rate_g: 0.004
     lr_d_epochs: [5,10,15,25,35,100,150,175]
     lr_d_gamma: 0.6691
-    lr_g_epochs: [5]
+    lr_g_epochs: [50,100,150]
     lr_g_gamma: 1.0
     
     deterministic: False
@@ -42,6 +42,6 @@ parameters:
     lambda_gp: 0.0 ## Enter False or float
     grad_clip: 0.5
     save_steps_list: ' '
-    run_suffix: cgan_bs16_nodes8_lrg0.001_lrdfastvary
+    run_suffix: cgan_bs16_nodes8_lrg0.004_drop_lrdfastvary
 
     description: '3d conditional GAN: DDP with new loss'

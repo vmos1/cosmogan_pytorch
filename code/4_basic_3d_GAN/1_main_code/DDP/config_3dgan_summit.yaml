@@ -39,6 +39,6 @@ parameters:
     lambda_gp: 0.0 ## Enter False or float
     grad_clip: 0.5
     save_steps_list: ' '
-    run_suffix: bs8_lr0.0003_nodes8_spec0.1
+    run_suffix: bs8_lr0.0003_nodes8_spec0.1_fixedlrcode
 
     description: '3d GAN: DDP with new loss'
