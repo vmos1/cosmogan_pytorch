@@ -24,20 +24,24 @@ parameters:
     sigma_list: [0.5,0.8,1.1]
     model: 2
     batch_size: 16
-    epochs: 20
-    learn_rate: 0.0002
+    epochs: 350
     op_size: 32
-    lr_epochs: [5,10,15, 70,80,90]
-    lr_gamma: 0.5
+    
+    learn_rate_d: 0.001
+    learn_rate_g: 0.004
+    lr_d_epochs: [5,10,15,20,25]
+    lr_d_gamma: 0.6691
+    lr_g_epochs: [5,10,20,25]
+    lr_g_gamma: 0.25
     
     deterministic: False
     seed: 234373
-    lambda_spec_mean: 1.0
-    lambda_spec_var: 1.0
+    lambda_spec_mean: 0.1
+    lambda_spec_var: 0.1
     lambda_fm: 0.0 ## Enter False or float
     lambda_gp: 0.0 ## Enter False or float
-    grad_clip: 1.0
-    save_steps_list: [5,10]
-    run_suffix: train
+    grad_clip: 0.5
+    save_steps_list: ''
+    run_suffix: cgan_bs16_nodes8_lrg0.004-fastvary_drop_lrdfastvary_cori
 
-    description: '2d conditional GAN: DDP with new loss'
+    description: '3d conditional GAN: DDP with new loss'
