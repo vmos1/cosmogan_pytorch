@@ -85,8 +85,8 @@ def f_load_checkpoint(ip_fname,netG,netD,optimizerG,optimizerD,gdict):
     try:
         checkpoint=torch.load(ip_fname)
     except Exception as e:
+        print("Error loading saved checkpoint",ip_fname)
         print(e)
-        print("skipping generation of images for ",ip_fname)
         raise SystemError
     
     ## Load checkpoint
@@ -108,7 +108,7 @@ def f_load_checkpoint(ip_fname,netG,netD,optimizerG,optimizerD,gdict):
     netG.train()
     netD.train()
     
-    return iters,epoch,best_chi1,best_chi2
+    return iters,epoch,best_chi1,best_chi2,netD,optimizerD,netG,optimizerG
 
 
 # Mod for 3D
