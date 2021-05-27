@@ -5,8 +5,9 @@ parameters:
     op_loc: '/gpfs/alpine/ast153/proj-shared/venkitesh/Cosmogan/data/results_pytorch/3d/'
     image_size: 64
     num_imgs: 4000
-    ip_fldr: '/gpfs/alpine/ast153/proj-shared/venkitesh/Cosmogan/data/results_pytorch/3d/20210525_82029_cgan_bs16_nodes8_lrd-twice-lrg_vary'
-    
+    ip_fldr: '/gpfs/alpine/ast153/proj-shared/venkitesh/Cosmogan/data/results_pytorch/3d/20210526_105905_nb_test'
+    chkpt_file: '/gpfs/alpine/ast153/proj-shared/venkitesh/Cosmogan/data/results_pytorch/3d/20210525_131551_cgan_bs16_nodes8_lrg-x1.5-lrd_vary/models/checkpoint_last.tar'
+
     workers: 2 #Number of workers for dataloader
     nc: 1 # Number of channels in the training images. For color images this is 3
     nz: 64 # Size of z latent vector (i.e. size of generator input)
@@ -25,11 +26,11 @@ parameters:
     sigma_list: [0.5,0.8,1.1]
     model: 2
     batch_size: 16
-    epochs: 15
+    epochs: 5
     op_size: 32
     
-    learn_rate_d: 0.002
-    learn_rate_g: 0.002
+    learn_rate_d: 0.001
+    learn_rate_g: 0.0015
     lr_d_epochs: [10,40,60,70,100,140,180]
     lr_d_gamma: 0.5
     lr_g_epochs: [10,40,60,70,100,140,180]
@@ -43,6 +44,6 @@ parameters:
     lambda_gp: 0.0 ## Enter False or float
     grad_clip: 0.5
     save_steps_list: ' '
-    run_suffix: cgan_bs16_nodes8_lrd-twice-lrg_vary
+    run_suffix: cgan_bs16_nodes8_lrg-x1.5-lrd_vary
 
     description: '3d conditional GAN: DDP with new loss'
