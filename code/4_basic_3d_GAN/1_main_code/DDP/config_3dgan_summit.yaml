@@ -5,6 +5,8 @@ parameters:
     op_loc: '/gpfs/alpine/ast153/proj-shared/venkitesh/Cosmogan/data/results_pytorch/3d/'
     image_size: 64
     num_imgs: 60000
+    ip_fldr: '/global/cfs/cdirs/m3363/vayyar/cosmogan_data/results_from_other_code/pytorch/results/3d_cGAN/20210526_125447_cgan_bs32_nodes8_lrd-twice-lrg_cori/'
+    chkpt_file: '/global/cfs/cdirs/m3363/vayyar/cosmogan_data/results_from_other_code/pytorch/results/3d_cGAN/20210526_125447_cgan_bs32_nodes8_lrd-twice-lrg_cori/models/checkpoint_last.tar'
 
     workers: 2 #Number of workers for dataloader
     nc: 1 # Number of channels in the training images. For color images this is 3

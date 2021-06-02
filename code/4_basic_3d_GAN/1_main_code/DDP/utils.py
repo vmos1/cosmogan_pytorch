@@ -166,11 +166,13 @@ def f_load_checkpoint(ip_fname,netG,netD,optimizerG,optimizerD,gdict):
     ''' Load saved checkpoint
     Also loads step, epoch, best_chi1, best_chi2'''
     
+    print("torch device",torch.device('cuda',torch.cuda.current_device()))
+            
     try:
-        checkpoint=torch.load(ip_fname)
+        checkpoint=torch.load(ip_fname,map_location=torch.device('cuda',torch.cuda.current_device()))
     except Exception as e:
+        print("Error loading saved checkpoint",ip_fname)
         print(e)
-        print("skipping generation of images for ",ip_fname)
         raise SystemError
     
     ## Load checkpoint

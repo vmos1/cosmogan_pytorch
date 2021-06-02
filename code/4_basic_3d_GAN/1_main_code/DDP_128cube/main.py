@@ -56,14 +56,13 @@ from spec_loss import *
 def f_manual_add_argparse():
     ''' use only in jpt notebook'''
     args=argparse.Namespace()
-    args.config='config_3dgan.yaml'
+    args.config='config_3d_Cgan.yaml'
     args.mode='fresh'
-    args.ip_fldr=''
-#     args.local_rank=0
+    args.local_rank=0
     args.facility='cori'
     args.distributed=False
+
 #     args.mode='continue'
-#     args.ip_fldr='/global/cfs/cdirs/m3363/vayyar/cosmogan_data/results_from_other_code/pytorch/results/128sq/20201211_093818_nb_test/'
     
     return args
 
@@ -72,13 +71,12 @@ def f_parse_args():
     parser = argparse.ArgumentParser(description="Run script to train GAN using pytorch", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     add_arg = parser.add_argument
     
-    add_arg('--config','-cfile',  type=str, default='config_3dgan.yaml', help='Whether to start fresh run or continue previous run')
-    add_arg('--mode','-m',  type=str, choices=['fresh','continue'],default='fresh', help='Whether to start fresh run or continue previous run')
-    add_arg('--ip_fldr','-ip',  type=str, default='', help='The input folder for resuming a checkpointed run')
+    add_arg('--config','-cfile',  type=str, default='config_3d_Cgan.yaml', help='Name of config file')
+    add_arg('--mode','-m',  type=str, choices=['fresh','continue','fresh_load'],default='fresh', help='Whether to start fresh run or continue previous run or fresh run loading a config file.')
     add_arg("--local_rank", default=0, type=int,help='Local rank of GPU on node. Using for pytorch DDP. ')
     add_arg("--facility", default='cori', choices=['cori','summit'],type=str,help='Facility: cori or summit ')
     add_arg("--ddp", dest='distributed' ,default=False,action='store_true',help='use Distributed DataParallel for Pytorch or DataParallel')
-
+    
     return parser.parse_args()
 
 
@@ -113,8 +111,8 @@ def f_init_gdict(args,gdict):
     else : print("Not using DDP")
     return gdict
 
-            
-def f_setup(gdict,log):
+
+def f_setup(gdict,metrics_df,log):
     ''' 
     Set up directories, Initialize random seeds, add GPU info, add logging info.
     '''
@@ -151,8 +149,8 @@ def f_setup(gdict,log):
         dist.init_process_group(backend='nccl', init_method="env://")  
         gdict['world_rank']= dist.get_rank()
         
-        logging.info("World size %s, world rank %s, local rank %s, hostname %s, GPUs on node %s\n"%(gdict['world_size'],gdict['world_rank'],gdict['local_rank'],socket.gethostname(),gdict['ngpu']))
         device = torch.cuda.current_device()
+        logging.info("World size %s, world rank %s, local rank %s device %s, hostname %s, GPUs on node %s\n"%(gdict['world_size'],gdict['world_rank'],gdict['local_rank'],device,socket.gethostname(),gdict['ngpu']))
         
         # Divide batch size by number of GPUs
 #         gdict['batch_size']=gdict['batch_size']//gdict['world_size']
@@ -162,8 +160,8 @@ def f_setup(gdict,log):
     ########################
     ###### Set up directories #######
     ### sync up so that time is the same for each GPU for DDP
-    if gdict['mode']=='fresh':
-        ### Create prefix for foldername            
+    if gdict['mode'] in ['fresh','fresh_load']:
+        ### Create prefix for foldername      
         if gdict['world_rank']==0: ### For rank=0, create directory name string and make directories
             dt_strg=datetime.now().strftime('%Y%m%d_%H%M%S') ## time format
             dt_lst=[int(i) for i in dt_strg.split('_')] # List storing day and time            
@@ -180,12 +178,12 @@ def f_setup(gdict,log):
             if not os.path.exists(gdict['save_dir']):
                 os.makedirs(gdict['save_dir']+'/models')
                 os.makedirs(gdict['save_dir']+'/images')
-                shutil.copy(gdict['config'],gdict['save_dir'])            
+                shutil.copy(gdict['config'],gdict['save_dir'])    
+    
     elif gdict['mode']=='continue': ## For checkpointed runs
-        gdict['save_dir']=args.ip_fldr
+        gdict['save_dir']=gdict['ip_fldr']
         ### Read loss data
-        with open (gdict['save_dir']+'df_metrics.pkle','rb') as f:
-            metrics_dict=pickle.load(f)
+        metrics_df=pd.read_pickle(gdict['save_dir']+'/df_metrics.pkle').astype(np.float64)
    
     ########################
     ### Initialize random seed
@@ -224,6 +222,8 @@ def f_setup(gdict,log):
 
         if gdict['world_rank']!=0:
                 logging.basicConfig(level=logging.DEBUG, filename=logfile, filemode="a+", format="%(asctime)-15s %(levelname)-8s %(message)s")
+
+return metrics_df
 
 def f_get_img_samples(ip_arr,rank=0,num_ranks=1):
     '''
@@ -329,21 +329,37 @@ class GAN_model():
         # self.criterion = nn.BCELoss()
         self.criterion = nn.BCEWithLogitsLoss()
 
+        self.optimizerD = optim.Adam(self.netD.parameters(), lr=gdict['learn_rate_d'], betas=(gdict['beta1'], 0.999),eps=1e-7)
+        self.optimizerG = optim.Adam(self.netG.parameters(), lr=gdict['learn_rate_g'], betas=(gdict['beta1'], 0.999),eps=1e-7)
+        
+        if gdict['distributed']:  try_barrier(gdict['world_rank'])
+
         if gdict['mode']=='fresh':
-            self.optimizerD = optim.Adam(self.netD.parameters(), lr=gdict['learn_rate'], betas=(gdict['beta1'], 0.999),eps=1e-7)
-            self.optimizerG = optim.Adam(self.netG.parameters(), lr=gdict['learn_rate'], betas=(gdict['beta1'], 0.999),eps=1e-7)
-            ### Initialize variables      
-            iters,start_epoch,best_chi1,best_chi2=0,0,1e10,1e10    
-
-        ### Load network weights for continuing run
+            iters,start_epoch,best_chi1,best_chi2=0,0,1e10,1e10 
+            
         elif gdict['mode']=='continue':
-            iters,start_epoch,best_chi1,best_chi2=f_load_checkpoint(gdict['save_dir']+'/models/checkpoint_last.tar',self.netG,self.netD,self.optimizerG,self.optimizerD,gdict) 
-            logging.info("Continuing existing run. Loading checkpoint with epoch {0} and step {1}".format(start_epoch,iters))
+            iters,start_epoch,best_chi1,best_chi2,self.netD,self.optimizerD,self.netG,self.optimizerG=f_load_checkpoint(gdict['save_dir']+'/models/checkpoint_last.tar',\
+                                                                                                                        self.netG,self.netD,self.optimizerG,self.optimizerD,gdict) 
+            if gdict['world_rank']==0: logging.info("\nContinuing existing run. Loading checkpoint with epoch {0} and step {1}\n".format(start_epoch,iters))
+            if gdict['distributed']:  try_barrier(gdict['world_rank'])
             start_epoch+=1  ## Start with the next epoch 
-
+        
+        elif gdict['mode']=='fresh_load':
+            iters,start_epoch,best_chi1,best_chi2,self.netD,self.optimizerD,self.netG,self.optimizerG=f_load_checkpoint(gdict['chkpt_file'],\
+                                                                                                                        self.netG,self.netD,self.optimizerG,self.optimizerD,gdict) 
+            if gdict['world_rank']==0: logging.info("Fresh run loading checkpoint file {0}".format(gdict['chkpt_file']))
+#             if gdict['distributed']:  try_barrier(gdict['world_rank'])
+            iters,start_epoch,best_chi1,best_chi2=0,0,1e10,1e10 
+        
         ## Add to gdict
         for key,val in zip(['best_chi1','best_chi2','iters','start_epoch'],[best_chi1,best_chi2,iters,start_epoch]): gdict[key]=val
-
+        
+        ## Set up learn rate scheduler
+        lr_stepsize=int((gdict['num_imgs']*len(gdict['sigma_list']))/(gdict['batch_size']*gdict['world_size'])) # convert epoch number to step 
+        lr_d_epochs=[i*lr_stepsize for i in gdict['lr_d_epochs']] 
+        lr_g_epochs=[i*lr_stepsize for i in gdict['lr_g_epochs']]
+        self.schedulerD = optim.lr_scheduler.MultiStepLR(self.optimizerD, milestones=lr_d_epochs,gamma=gdict['lr_d_gamma'])
+        self.schedulerG = optim.lr_scheduler.MultiStepLR(self.optimizerG, milestones=lr_g_epochs,gamma=gdict['lr_g_gamma'])
 
 ### Train code ###
 
@@ -404,6 +420,9 @@ def f_train_loop(gan_model,Dset,metrics_df,gdict,fixed_noise):
                 nn.utils.clip_grad_norm_(gan_model.netD.parameters(),gdict['grad_clip'])
 
             gan_model.optimizerD.step()
+            lr_d=gan_model.optimizerD.param_groups[0]['lr']
+            gan_model.schedulerD.step()
+            
 # dict_keys(['train_data_loader', 'r', 'ind', 'train_spec_mean', 'train_spec_var', 'train_hist', 'val_spec_mean', 'val_spec_var', 'val_hist'])
 
             ###Update G network: maximize log(D(G(z)))
@@ -443,7 +462,9 @@ def f_train_loop(gan_model,Dset,metrics_df,gdict,fixed_noise):
                 nn.utils.clip_grad_norm_(gan_model.netG.parameters(),gdict['grad_clip'])
             
             gan_model.optimizerG.step()
-
+            lr_g=gan_model.optimizerG.param_groups[0]['lr']
+            gan_model.schedulerG.step()
+            
             tme2=time.time()
             ####### Store metrics ########
             # Output training stats
@@ -455,8 +476,8 @@ def f_train_loop(gan_model,Dset,metrics_df,gdict,fixed_noise):
                     logging.info("Training time for step %s : %s"%(iters, tme2-tme1))
 
                 # Save metrics
-                cols=['step','epoch','Dreal','Dfake','Dfull','G_adv','G_full','spec_loss','hist_loss','fm_loss','gp_loss','D(x)','D_G_z1','D_G_z2','time']
-                vals=[iters,epoch,errD_real.item(),errD_fake.item(),errD.item(),errG_adv.item(),errG.item(),spec_loss.item(),hist_loss.item(),fm_loss.item(),gp_loss.item(),D_x,D_G_z1,D_G_z2,tme2-tme1]
+                cols=['step','epoch','Dreal','Dfake','Dfull','G_adv','G_full','spec_loss','hist_loss','fm_loss','gp_loss','D(x)','D_G_z1','D_G_z2','lr_d','lr_g','time']
+                vals=[iters,epoch,errD_real.item(),errD_fake.item(),errD.item(),errG_adv.item(),errG.item(),spec_loss.item(),hist_loss.item(),fm_loss.item(),gp_loss.item(),D_x,D_G_z1,D_G_z2,lr_d,lr_g,tme2-tme1]
                 for col,val in zip(cols,vals):  metrics_df.loc[iters,col]=val
 
                 ### Checkpoint the best model
@@ -503,11 +524,6 @@ def f_train_loop(gan_model,Dset,metrics_df,gdict,fixed_noise):
                         img_arr=np.array(fake)
                         fname='gen_img_epoch-%s_step-%s'%(epoch,iters)
                         np.save(save_dir+'/images/'+fname,img_arr)
-                
-                if ((count % gdict['checkpoint_size'] == 0)):
-                    tme3=time.time()
-                    logging.info("Post training time for step %s : %s"%(iters, tme3-tme2))
-        
         
         t_epoch_end=time.time()
         if gdict['world_rank']==0:
@@ -537,7 +553,12 @@ if __name__=="__main__":
         gdict['num_imgs']=400
         gdict['run_suffix']='nb_test'
         
-    f_setup(gdict,log=(not jpt))
+    ### Set up metrics dataframe
+    cols=['step','epoch','Dreal','Dfake','Dfull','G_adv','G_full','spec_loss','hist_loss','spec_chi','hist_chi','gp_loss','fm_loss','D(x)','D_G_z1','D_G_z2','time']
+    metrics_df=pd.DataFrame(columns=cols)
+    
+    # Setup
+    metrics_df=f_setup(gdict,metrics_df,log=(not jpt))
     
     ## Build GAN
     gan_model=GAN_model(gdict,False)
@@ -550,21 +571,20 @@ if __name__=="__main__":
     
     #################################
     ########## Train loop and save metrics and images ######
-    ### Set up metrics dataframe
-    cols=['step','epoch','Dreal','Dfake','Dfull','G_adv','G_full','spec_loss','hist_loss','spec_chi','hist_chi','gp_loss','fm_loss','D(x)','D_G_z1','D_G_z2','time']
-    metrics_df=pd.DataFrame(columns=cols)
     if gdict['distributed']:  try_barrier(gdict['world_rank'])
 
-#     print(gdict)
-    logging.info("Starting Training Loop...")
+    if gdict['world_rank']==0: 
+        logging.info(gdict)
+        logging.info("Starting Training Loop...")
+        
     f_train_loop(gan_model,Dset,metrics_df,gdict,fixed_noise)
     
     if gdict['world_rank']==0: ## Generate images for best saved models ######
         op_loc=gdict['save_dir']+'/images/'
         ip_fname=gdict['save_dir']+'/models/checkpoint_best_spec.tar'
-        f_gen_images(gdict,gan_model.netG,gan_model.optimizerG,ip_fname,op_loc,op_strg='best_spec',op_size=gdict['op_size'])
+        f_gen_images(gdict,gan_model.netG,gan_model.optimizerG,ip_fname,op_loc,op_strg='best_spec',op_size=32)
         ip_fname=gdict['save_dir']+'/models/checkpoint_best_hist.tar'
-        f_gen_images(gdict,gan_model.netG,gan_model.optimizerG,ip_fname,op_loc,op_strg='best_hist',op_size=gdict['op_size'])
+        f_gen_images(gdict,gan_model.netG,gan_model.optimizerG,ip_fname,op_loc,op_strg='best_hist',op_size=32)
     
     tf=time.time()
     logging.info("Total time %s"%(tf-t0))

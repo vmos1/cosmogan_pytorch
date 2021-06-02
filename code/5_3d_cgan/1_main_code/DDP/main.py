@@ -171,16 +171,13 @@ def f_setup(gdict,metrics_df,log):
         gdict['world_rank']= dist.get_rank()
         
         device = torch.cuda.current_device()
-        print("World size %s, world rank %s, local rank %s device %s, hostname %s, GPUs on node %s\n"%(gdict['world_size'],gdict['world_rank'],gdict['local_rank'],device,socket.gethostname(),gdict['ngpu']))
+        logging.info("World size %s, world rank %s, local rank %s device %s, hostname %s, GPUs on node %s\n"%(gdict['world_size'],gdict['world_rank'],gdict['local_rank'],device,socket.gethostname(),gdict['ngpu']))
         
         # Divide batch size by number of GPUs
 #         gdict['batch_size']=gdict['batch_size']//gdict['world_size']
     else:
         gdict['world_size'],gdict['world_rank'],gdict['local_rank']=1,0,0
-    
-    
-#     print("GPU info",torch.cuda.device_count(),torch.cuda.get_device_name(),torch.cuda.current_device(),gdict['local_rank'],gdict['world_rank'])
-#     raise SystemExit
+
     
     ########################
     ###### Set up directories #######
@@ -599,18 +596,15 @@ if __name__=="__main__":
     rnd_idx=torch.randint(len(gdict['sigma_list']),(gdict['op_size'],1),device=gdict['device'])
     fixed_cosm_params=torch.tensor([gdict['sigma_list'][i] for i in rnd_idx.long()],device=gdict['device']).unsqueeze(-1)
     
-    print("after gan model, before Dset",gdict['world_rank'])
     if gdict['distributed']:  try_barrier(gdict['world_rank'])
     
     ## Load data and precompute
     Dset=Dataset(gdict)
     
-    if gdict['distributed']:  
-        print("After dataset ",gdict['world_rank'])
-        try_barrier(gdict['world_rank'])
-
     #################################
     ########## Train loop and save metrics and images ######    
+    if gdict['distributed']:  try_barrier(gdict['world_rank'])
+        
     if gdict['world_rank']==0: 
         logging.info(gdict)
         logging.info("Starting Training Loop...")
@@ -621,10 +615,10 @@ if __name__=="__main__":
         for cl in gdict['sigma_list']:
             op_loc=gdict['save_dir']+'/images/'
             ip_fname=gdict['save_dir']+'/models/checkpoint_best_spec.tar'
-            f_gen_images(gdict,gan_model.netG,gan_model.optimizerG,cl,ip_fname,op_loc,op_strg='gen_img_best_spec',op_size=100)
+            f_gen_images(gdict,gan_model.netG,gan_model.optimizerG,cl,ip_fname,op_loc,op_strg='gen_img_best_spec',op_size=32)
 
             ip_fname=gdict['save_dir']+'/models/checkpoint_best_hist.tar'
-            f_gen_images(gdict,gan_model.netG,gan_model.optimizerG,cl,ip_fname,op_loc,op_strg='gen_img_best_hist',op_size=100)
+            f_gen_images(gdict,gan_model.netG,gan_model.optimizerG,cl,ip_fname,op_loc,op_strg='gen_img_best_hist',op_size=32)
     
     tf=time.time()
     logging.info("Total time %s"%(tf-t0))
