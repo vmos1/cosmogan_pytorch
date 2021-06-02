@@ -4,9 +4,9 @@ parameters:
     ip_fname: '/gpfs/alpine/ast153/proj-shared/venkitesh/Cosmogan/data/raw_data/3d_data/128cube/dataset3_smoothing_const_params_128cube/norm_1_train_val.npy'
     op_loc: '/gpfs/alpine/ast153/proj-shared/venkitesh/Cosmogan/data/results_pytorch/3d/'
     image_size: 128
-    num_imgs: 15000
-    ip_fldr: '/global/cfs/cdirs/m3363/vayyar/cosmogan_data/results_from_other_code/pytorch/results/3d_cGAN/20210526_125447_cgan_bs32_nodes8_lrd-twice-lrg_cori/'
-    chkpt_file: '/global/cfs/cdirs/m3363/vayyar/cosmogan_data/results_from_other_code/pytorch/results/3d_cGAN/20210526_125447_cgan_bs32_nodes8_lrd-twice-lrg_cori/models/checkpoint_last.tar'
+    num_imgs: 1500
+    ip_fldr: '/gpfs/alpine/ast153/proj-shared/venkitesh/Cosmogan/data/results_pytorch/3d/20210602_92842_128cube_bs4_lr0.00003_nodes8/'
+    chkpt_file: '/gpfs/alpine/ast153/proj-shared/venkitesh/Cosmogan/data/results_pytorch/3d/20210602_92842_128cube_bs4_lr0.00003_nodes8/models/checkpoint_last.tar'
 
     workers: 2 #Number of workers for dataloader
     nc: 1 # Number of channels in the training images. For color images this is 3
@@ -23,11 +23,16 @@ parameters:
 
     checkpoint_size: 10
     batch_size: 4
-
-    epochs: 250
-    learn_rate: 0.00003
+    epochs: 7
     op_size: 32
 
+    learn_rate_d: 0.0003
+    learn_rate_g: 0.0003
+    lr_d_epochs: [5,10,15]
+    lr_d_gamma: 1.0
+    lr_g_epochs: [5,10,15]
+    lr_g_gamma: 1.0
+    
     deterministic: False
     seed: 234373
     lambda_spec_mean: 0.1

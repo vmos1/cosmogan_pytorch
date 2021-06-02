@@ -21,14 +21,17 @@ parameters:
     flip_prob: 0.01
     bns: 50
     
-    checkpoint_size: 1
-     
+    checkpoint_size: 10
     batch_size: 8
-    epochs: 60
-    learn_rate: 0.001
+    epochs: 5
     op_size: 32
-    lr_epochs: [5,10,15, 70,80,90]
-    lr_gamma: 0.5
+
+    learn_rate_d: 0.0003
+    learn_rate_g: 0.0003
+    lr_d_epochs: [5,10,15]
+    lr_d_gamma: 1.0
+    lr_g_epochs: [5,10,15]
+    lr_g_gamma: 1.0
     
     deterministic: False
     seed: 234373

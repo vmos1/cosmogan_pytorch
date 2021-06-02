@@ -223,7 +223,7 @@ def f_setup(gdict,metrics_df,log):
         if gdict['world_rank']!=0:
                 logging.basicConfig(level=logging.DEBUG, filename=logfile, filemode="a+", format="%(asctime)-15s %(levelname)-8s %(message)s")
 
-return metrics_df
+    return metrics_df
 
 def f_get_img_samples(ip_arr,rank=0,num_ranks=1):
     '''
@@ -355,7 +355,7 @@ class GAN_model():
         for key,val in zip(['best_chi1','best_chi2','iters','start_epoch'],[best_chi1,best_chi2,iters,start_epoch]): gdict[key]=val
         
         ## Set up learn rate scheduler
-        lr_stepsize=int((gdict['num_imgs']*len(gdict['sigma_list']))/(gdict['batch_size']*gdict['world_size'])) # convert epoch number to step 
+        lr_stepsize=int((gdict['num_imgs'])/(gdict['batch_size']*gdict['world_size'])) # convert epoch number to step 
         lr_d_epochs=[i*lr_stepsize for i in gdict['lr_d_epochs']] 
         lr_g_epochs=[i*lr_stepsize for i in gdict['lr_g_epochs']]
         self.schedulerD = optim.lr_scheduler.MultiStepLR(self.optimizerD, milestones=lr_d_epochs,gamma=gdict['lr_d_gamma'])

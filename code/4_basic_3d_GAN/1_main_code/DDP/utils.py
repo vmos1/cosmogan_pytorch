@@ -194,6 +194,7 @@ def f_load_checkpoint(ip_fname,netG,netD,optimizerG,optimizerD,gdict):
     netG.train()
     netD.train()
     
-    return iters,epoch,best_chi1,best_chi2
+    return iters,epoch,best_chi1,best_chi2,netD,optimizerD,netG,optimizerG
+
 
 
