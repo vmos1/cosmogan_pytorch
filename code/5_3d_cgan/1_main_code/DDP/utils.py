@@ -30,7 +30,7 @@ def f_gen_images(gdict,netG,optimizerG,sigma,ip_fname,op_loc,op_strg='inf_img_',
     '''
 
     nz,device=gdict['nz'],gdict['device']
-
+    
     try:# handling cpu vs gpu
         if torch.cuda.is_available(): checkpoint=torch.load(ip_fname)
         else: checkpoint=torch.load(ip_fname,map_location=torch.device('cpu'))
@@ -82,8 +82,10 @@ def f_load_checkpoint(ip_fname,netG,netD,optimizerG,optimizerD,gdict):
     ''' Load saved checkpoint
     Also loads step, epoch, best_chi1, best_chi2'''
     
+    print("torch device",torch.device('cuda',torch.cuda.current_device()))
+            
     try:
-        checkpoint=torch.load(ip_fname)
+        checkpoint=torch.load(ip_fname,map_location=torch.device('cuda',torch.cuda.current_device()))
     except Exception as e:
         print("Error loading saved checkpoint",ip_fname)
         print(e)
@@ -108,13 +110,14 @@ def f_load_checkpoint(ip_fname,netG,netD,optimizerG,optimizerD,gdict):
     netG.train()
     netD.train()
     
+    print("finished loading checkpoint",gdict['world_rank'])
     return iters,epoch,best_chi1,best_chi2,netD,optimizerD,netG,optimizerG
 
 
 # Mod for 3D
 def f_get_model(model_name,gdict):
     ''' Module to define Generator and Discriminator'''
-    print("Model name",model_name)
+#     print("Model name",model_name)
     
     if model_name==2: #### Concatenate sigma input
         class Generator(nn.Module):

@@ -48,7 +48,6 @@ import collections
 from utils import *
 from spec_loss import *
 
-
 ########## Modules
 ### Setup modules ###
 def f_manual_add_argparse():
@@ -171,13 +170,17 @@ def f_setup(gdict,metrics_df,log):
         dist.init_process_group(backend='nccl', init_method="env://")  
         gdict['world_rank']= dist.get_rank()
         
-        print("World size %s, world rank %s, local rank %s, hostname %s, GPUs on node %s\n"%(gdict['world_size'],gdict['world_rank'],gdict['local_rank'],socket.gethostname(),gdict['ngpu']))
         device = torch.cuda.current_device()
+        print("World size %s, world rank %s, local rank %s device %s, hostname %s, GPUs on node %s\n"%(gdict['world_size'],gdict['world_rank'],gdict['local_rank'],device,socket.gethostname(),gdict['ngpu']))
         
         # Divide batch size by number of GPUs
 #         gdict['batch_size']=gdict['batch_size']//gdict['world_size']
     else:
         gdict['world_size'],gdict['world_rank'],gdict['local_rank']=1,0,0
+    
+    
+#     print("GPU info",torch.cuda.device_count(),torch.cuda.get_device_name(),torch.cuda.current_device(),gdict['local_rank'],gdict['world_rank'])
+#     raise SystemExit
     
     ########################
     ###### Set up directories #######
@@ -376,7 +379,7 @@ class GAN_model():
             iters,start_epoch,best_chi1,best_chi2,self.netD,self.optimizerD,self.netG,self.optimizerG=f_load_checkpoint(gdict['chkpt_file'],\
                                                                                                                         self.netG,self.netD,self.optimizerG,self.optimizerD,gdict) 
             if gdict['world_rank']==0: logging.info("Fresh run loading checkpoint file {0}".format(gdict['chkpt_file']))
-            if gdict['distributed']:  try_barrier(gdict['world_rank'])
+#             if gdict['distributed']:  try_barrier(gdict['world_rank'])
             iters,start_epoch,best_chi1,best_chi2=0,0,1e10,1e10 
         
         ## Add to gdict
@@ -596,12 +599,15 @@ if __name__=="__main__":
     rnd_idx=torch.randint(len(gdict['sigma_list']),(gdict['op_size'],1),device=gdict['device'])
     fixed_cosm_params=torch.tensor([gdict['sigma_list'][i] for i in rnd_idx.long()],device=gdict['device']).unsqueeze(-1)
     
+    print("after gan model, before Dset",gdict['world_rank'])
     if gdict['distributed']:  try_barrier(gdict['world_rank'])
-
+    
     ## Load data and precompute
     Dset=Dataset(gdict)
     
-    if gdict['distributed']:  try_barrier(gdict['world_rank'])
+    if gdict['distributed']:  
+        print("After dataset ",gdict['world_rank'])
+        try_barrier(gdict['world_rank'])
 
     #################################
     ########## Train loop and save metrics and images ######    
