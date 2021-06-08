@@ -101,7 +101,7 @@ def f_write_corr(img_index,a1,num_corrs,edge_size,box_size,slice_idx,data_dir,su
         for i in op1.variables:  
             corr_list.append(op1[i]) 
         
-        arr=np.array(corr_list,dtype=object)
+        arr=np.array(corr_list,dtype=object).astype(float)
         print(arr.shape)
         ## Save correlators
         fname='img_idx_'+str(img_index)+'_'+suffix+'.npy'
