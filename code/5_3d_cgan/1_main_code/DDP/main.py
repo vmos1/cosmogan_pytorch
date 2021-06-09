@@ -245,7 +245,7 @@ def f_setup(gdict,metrics_df,log):
         if gdict['world_rank']!=0:
                 logging.basicConfig(level=logging.DEBUG, filename=logfile, filemode="a+", format="%(asctime)-15s %(levelname)-8s %(message)s")
 
-        return metrics_df
+    return metrics_df
 
 class Dataset:
     def __init__(self,gdict):
