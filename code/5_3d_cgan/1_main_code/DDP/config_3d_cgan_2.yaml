@@ -5,8 +5,8 @@ parameters:
     op_loc: '/global/cfs/cdirs/m3363/vayyar/cosmogan_data/results_from_other_code/pytorch/results/3d_cGAN/'
     image_size: 64
     num_imgs: 50000
-    ip_fldr: '/global/cfs/cdirs/m3363/vayyar/cosmogan_data/results_from_other_code/pytorch/results/3d_cGAN/20210607_200006_cgan_bs32_twosigma_fm50.0_lr0.0003/'
-    chkpt_file: '/global/cfs/cdirs/m3363/vayyar/cosmogan_data/results_from_other_code/pytorch/results/3d_cGAN/20210607_200006_cgan_bs32_twosigma_fm50.0_lr0.0003/models/checkpoint_last.tar'
+    ip_fldr: '/global/cfs/cdirs/m3363/vayyar/cosmogan_data/results_from_other_code/pytorch/results/3d_cGAN/20210609_62026_cgan_bs32_twosigma_fm50.0_lrd4x_0.0004/'
+    chkpt_file: '/global/cfs/cdirs/m3363/vayyar/cosmogan_data/results_from_other_code/pytorch/results/3d_cGAN/20210609_62026_cgan_bs32_twosigma_fm50.0_lrd4x_0.0004/models/checkpoint_last.tar'
 
     workers: 2 #Number of workers for dataloader
     nc: 1 # Number of channels in the training images. For color images this is 3
@@ -26,11 +26,11 @@ parameters:
     sigma_list: [0.5,0.8]
     model: 2
     batch_size: 32
-    epochs: 300
+    epochs: 200
     op_size: 16
     
-    learn_rate_d: 0.0003
-    learn_rate_g: 0.0003
+    learn_rate_d: 0.0004
+    learn_rate_g: 0.0001
     lr_d_epochs: [5]
     lr_d_gamma: 1.0
     lr_g_epochs: [5]
@@ -44,6 +44,6 @@ parameters:
     lambda_gp: 0.0 ## Enter False or float
     grad_clip: 0.5
     save_steps_list: ''
-    run_suffix: cgan_bs32_twosigma_fm50.0_lr0.0003
+    run_suffix: cgan_bs32_twosigma_fm50.0_lrd4x_0.0004
 
     description: '3d conditional GAN: DDP with new loss'

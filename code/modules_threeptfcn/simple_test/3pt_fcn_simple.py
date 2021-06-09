@@ -31,14 +31,14 @@ def f_make_catalog(img,comm):
         x=np.arange(img.shape[0]) 
         y=np.arange(img.shape[1])
 
-        coord=np.array([(i,j,0) for i in x for j in y],dtype=object).astype(float) ## Form is (x,y,0)
+        coord=np.stack([(i,j,0) for i in x for j in y]) ## Form is (x,y,0)
     
     elif dim==3: 
         x=np.arange(img.shape[0]) 
         y=np.arange(img.shape[1])
         z=np.arange(img.shape[2])
 
-        coord=np.array([(i,j,k) for i in x for j in y for k in z],dtype=object).astype(float) ## Form is (x,y,z)
+        coord=np.stack([(i,j,k) for i in x for j in y for k in z]) ## Form is (x,y,z)
 
     else: 
         print("invalid dimension of image",img.shape)
@@ -101,7 +101,7 @@ def f_write_corr(img_index,a1,num_corrs,edge_size,box_size,slice_idx,data_dir,su
         for i in op1.variables:  
             corr_list.append(op1[i]) 
         
-        arr=np.array(corr_list,dtype=object).astype(float)
+        arr=np.stack(corr_list)
         print(arr.shape)
         ## Save correlators
         fname='img_idx_'+str(img_index)+'_'+suffix+'.npy'
