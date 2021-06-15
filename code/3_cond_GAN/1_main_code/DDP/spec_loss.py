@@ -63,9 +63,6 @@ def f_image_spectrum(x,num_channels):
 ####################
 ### Pytorch code ###
 ####################
-####################
-### Pytorch code ###
-####################
 
 def f_torch_radial_profile(img, center=(None,None)):
     ''' Module to compute radial profile of a 2D image 
@@ -208,7 +205,7 @@ def f_torch_compute_spectrum(arr,r,ind):
     
     GLOBAL_MEAN=1.0
     arr=(arr-GLOBAL_MEAN)/(GLOBAL_MEAN)
-    y1=torch.rfft(arr,signal_ndim=2,onesided=False)
+    y1=torch.rfft(arr,signal_ndim=2,onesided=False) ## Mod for 3D
     real,imag=f_torch_fftshift(y1[:,:,0],y1[:,:,1])    ## last index is real/imag part
     
 #     y1=torch.fft.fftn(arr,dim=(-2,-1))

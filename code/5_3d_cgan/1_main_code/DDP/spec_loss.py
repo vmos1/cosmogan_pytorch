@@ -64,7 +64,7 @@ def f_image_spectrum(x,num_channels):
 ### Pytorch code ###
 ####################
 
-def f_torch_radial_profile(img, center=(None,None)):
+def f_torch_radial_profile(img, center=(None,None)): ### Not used in code
     ''' Module to compute radial profile of a 2D image 
     Bincount causes issues with backprop, so not using this code
     '''
@@ -85,51 +85,6 @@ def f_torch_radial_profile(img, center=(None,None)):
     
     return radialprofile[1:-1]
 
-
-def f_torch_get_azimuthalAverage_with_batch(image, center=None): ### Not used in this code.
-    """
-    Calculate the azimuthally averaged radial profile. Only use if you need to combine batches
-
-    image - The 2D image
-    center - The [x,y] pixel coordinates used as the center. The default is 
-             None, which then uses the center of the image (including 
-             fracitonal pixels).
-    source: https://www.astrobetter.com/blog/2010/03/03/fourier-transforms-of-images-in-python/
-    """
-    
-    batch, channel, height, width = image.shape
-    # Create a grid of points with x and y coordinates
-    y, x = np.indices([height,width])
-
-    if not center:
-        center = np.array([(x.max()-x.min())/2.0, (y.max()-y.min())/2.0])
-
-    # Get the radial coordinate for every grid point. Array has the shape of image
-    r = torch.tensor(np.hypot(x - center[0], y - center[1]))
-
-    # Get sorted radii
-    ind = torch.argsort(torch.reshape(r, (batch, channel,-1)))
-    r_sorted = torch.gather(torch.reshape(r, (batch, channel, -1,)),2, ind)
-    i_sorted = torch.gather(torch.reshape(image, (batch, channel, -1,)),2, ind)
-
-    # Get the integer part of the radii (bin size = 1)
-    r_int=r_sorted.to(torch.int32)
-
-    # Find all pixels that fall within each radial bin.
-    deltar = r_int[:,:,1:] - r_int[:,:,:-1]  # Assumes all radii represented
-    rind = torch.reshape(torch.where(deltar)[2], (batch, -1))    # location of changes in radius
-    rind=torch.unsqueeze(rind,1)
-    nr = (rind[:,:,1:] - rind[:,:,:-1]).type(torch.float)       # number of radius bin
-
-    # Cumulative sum to figure out sums for each radius bin
-
-    csum = torch.cumsum(i_sorted, axis=-1)
-#     print(csum.shape,rind.shape,nr.shape)
-
-    tbin = torch.gather(csum, 2, rind[:,:,1:]) - torch.gather(csum, 2, rind[:,:,:-1])
-    radial_prof = tbin / nr
-
-    return radial_prof
 
 def f_get_rad(img):
     ''' Get the radial tensor for use in f_torch_get_azimuthalAverage '''
@@ -204,7 +159,7 @@ def f_torch_compute_spectrum(arr,r,ind):
     GLOBAL_MEAN=1.0
     arr=(arr-GLOBAL_MEAN)/(GLOBAL_MEAN)
     
-    y1=torch.rfft(arr,signal_ndim=3,onesided=False)
+    y1=torch.rfft(arr,signal_ndim=3,onesided=False) ## Mod for 3D
     real,imag=f_torch_fftshift(y1[:,:,:,0],y1[:,:,:,1])    ## last index is real/imag part  ## Mod for 3D
     
 #     # For pytorch 1.8
@@ -293,7 +248,7 @@ def f_FM_loss(real_output,fake_output,lambda_fm,gdict):
     Module to implement Feature-Matching loss. Reads all but last elements of Discriminator ouput
     '''
     FM=torch.Tensor([0.0]).to(gdict['device'])
-    for i,j in zip(real_output[:-1][0],fake_output[:-1][0]):
+    for i,j in zip(real_output[:-1],fake_output[:-1]):
         real_mean=torch.mean(i)
         fake_mean=torch.mean(j)
         FM=FM.clone()+torch.sum(torch.square(real_mean-fake_mean))
