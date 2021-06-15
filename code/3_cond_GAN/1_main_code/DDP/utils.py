@@ -12,18 +12,6 @@ def f_transform(x):
 def f_invtransform(s):
     return 4.*(1. + s)/(1. - s)
 
-
-# custom weights initialization called on netG and netD
-def weights_init(m):
-    classname = m.__class__.__name__
-    if classname.find('Conv') != -1:
-        nn.init.normal_(m.weight.data, 0.0, 0.02)
-    elif classname.find('BatchNorm') != -1:
-        nn.init.normal_(m.weight.data, 1.0, 0.02)
-        nn.init.constant_(m.bias.data, 0)
-#     elif classname.find('Linear') != -1:
-#         nn.init.normal_(m.weight.data, 1.0, 0.02)
-        
 # Generator Code
 class View(nn.Module):
     def __init__(self, shape):
@@ -42,7 +30,7 @@ def f_gen_images(gdict,netG,optimizerG,sigma,ip_fname,op_loc,op_strg='inf_img_',
     '''
 
     nz,device=gdict['nz'],gdict['device']
-
+    
     try:# handling cpu vs gpu
         if torch.cuda.is_available(): checkpoint=torch.load(ip_fname)
         else: checkpoint=torch.load(ip_fname,map_location=torch.device('cpu'))
@@ -63,14 +51,14 @@ def f_gen_images(gdict,netG,optimizerG,sigma,ip_fname,op_loc,op_strg='inf_img_',
     optimizerG.load_state_dict(checkpoint['optimizerG_state_dict'])
     
     # Generate batch of latent vectors
-    noise = torch.randn(op_size, 1, 1, nz, device=device)
+    noise = torch.randn(op_size, 1, 1, nz, device=device) ## Mod for 3D
     tnsr_cosm_params=(torch.ones(op_size,device=device)*sigma).view(op_size,1)
     
     # Generate fake image batch with G
     netG.eval() ## This is required before running inference
     with torch.no_grad(): ## This is important. fails without it for multi-gpu
         gen = netG(noise,tnsr_cosm_params)
-        gen_images=gen.detach().cpu().numpy()[:,:,:,:]
+        gen_images=gen.detach().cpu().numpy()
         print(gen_images.shape)
     
     op_fname='%s_epoch-%s_step-%s.npy'%(op_strg,epoch,iters)
@@ -94,11 +82,13 @@ def f_load_checkpoint(ip_fname,netG,netD,optimizerG,optimizerD,gdict):
     ''' Load saved checkpoint
     Also loads step, epoch, best_chi1, best_chi2'''
     
+    print("torch device",torch.device('cuda',torch.cuda.current_device()))
+            
     try:
-        checkpoint=torch.load(ip_fname)
+        checkpoint=torch.load(ip_fname,map_location=torch.device('cuda',torch.cuda.current_device()))
     except Exception as e:
+        print("Error loading saved checkpoint",ip_fname)
         print(e)
-        print("skipping generation of images for ",ip_fname)
         raise SystemError
     
     ## Load checkpoint
@@ -120,12 +110,14 @@ def f_load_checkpoint(ip_fname,netG,netD,optimizerG,optimizerD,gdict):
     netG.train()
     netD.train()
     
-    return iters,epoch,best_chi1,best_chi2
+    print("finished loading checkpoint",gdict['world_rank'])
+    return iters,epoch,best_chi1,best_chi2,netD,optimizerD,netG,optimizerG
 
 
+# Mod for 3D
 def f_get_model(model_name,gdict):
     ''' Module to define Generator and Discriminator'''
-    print("Model name",model_name)
+#     print("Model name",model_name)
     
     if model_name==2: #### Concatenate sigma input
         class Generator(nn.Module):
@@ -344,4 +336,3 @@ def f_get_model(model_name,gdict):
                 return ans
 
     return Generator, Discriminator
-
