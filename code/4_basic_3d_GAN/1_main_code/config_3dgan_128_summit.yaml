@@ -1,0 +1,46 @@
+
+
+parameters:
+    ip_fname: '/gpfs/alpine/ast153/proj-shared/venkitesh/Cosmogan/data/raw_data/3d_data/128cube/dataset3_smoothing_const_params_128cube/norm_1_train_val.npy'
+    op_loc: '/gpfs/alpine/ast153/proj-shared/venkitesh/Cosmogan/data/results_pytorch/3d/'
+    image_size: 128
+    num_imgs: 10000
+    ip_fldr: '/gpfs/alpine/ast153/proj-shared/venkitesh/Cosmogan/data/results_pytorch/3d/20210602_91407_bs8_lr0.0003_nodes8_spec0.1_fixedlrcode/'
+    chkpt_file: '/gpfs/alpine/ast153/proj-shared/venkitesh/Cosmogan/data/results_pytorch/3d/20210602_91407_bs8_lr0.0003_nodes8_spec0.1_fixedlrcode/models/checkpoint_last.tar'
+
+    workers: 2 #Number of workers for dataloader
+    nc: 1 # Number of channels in the training images. For color images this is 3
+    nz: 64 # Size of z latent vector (i.e. size of generator input)
+    ngf: 64 # Size of feature maps in generator
+    ndf: 64 # Size of feature maps in discriminator
+    beta1: 0.5 # Beta1 hyperparam for Adam optimizers
+    kernel_size: 5
+    stride: 2
+    g_padding: 2
+    d_padding: 2
+    flip_prob: 0.01
+    bns: 50
+    
+    checkpoint_size: 10
+    batch_size: 8
+    epochs: 10
+    op_size: 16
+    
+    learn_rate_d: 0.0003
+    learn_rate_g: 0.0003
+    lr_d_epochs: [5,10,15]
+    lr_d_gamma: 1.0
+    lr_g_epochs: [5,10,15]
+    lr_g_gamma: 1.0
+    
+    deterministic: False
+    seed: 234373
+    lambda_spec_mean: 0.1
+    lambda_spec_var: 0.1
+    lambda_fm: 0.0 ## Enter False or float
+    lambda_gp: 0.0 ## Enter False or float
+    grad_clip: 0.5
+    save_steps_list: ' '
+    run_suffix: bs8_lr0.0003_nodes8_spec0.1_fixedlrcode
+
+    description: '3d GAN: DDP with new loss'

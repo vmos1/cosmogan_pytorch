@@ -21,91 +21,183 @@ class View(nn.Module):
     def forward(self, x):
         return x.view(*self.shape)
 
+def f_get_model(gdict):
+    ''' Module to define Generator and Discriminator'''
 
-class Generator(nn.Module):
-    def __init__(self, gdict):
-        super(Generator, self).__init__()
+    if gdict['image_size']==64:
 
-        ## Define new variables from dict
-        keys=['ngpu','nz','nc','ngf','kernel_size','stride','g_padding']
-        ngpu, nz,nc,ngf,kernel_size,stride,g_padding=list(collections.OrderedDict({key:gdict[key] for key in keys}).values())
+        class Generator(nn.Module):
+            def __init__(self, gdict):
+                super(Generator, self).__init__()
 
-        self.main = nn.Sequential(
-            # nn.ConvTranspose3d(in_channels, out_channels, kernel_size,stride,padding,output_padding,groups,bias, Dilation,padding_mode)
-            nn.Linear(nz,nc*ngf*8**3),# 262144
-            nn.BatchNorm3d(nc,eps=1e-05, momentum=0.9, affine=True),
-            nn.ReLU(inplace=True),
-            View(shape=[-1,ngf*8,4,4,4]),
-            nn.ConvTranspose3d(ngf * 8, ngf * 4, kernel_size, stride, g_padding, output_padding=1, bias=False),
-            nn.BatchNorm3d(ngf*4,eps=1e-05, momentum=0.9, affine=True),
-            nn.ReLU(inplace=True),
-            # state size. (ngf*4) x 8 x 8
-            nn.ConvTranspose3d( ngf * 4, ngf * 2, kernel_size, stride, g_padding, 1, bias=False),
-            nn.BatchNorm3d(ngf*2,eps=1e-05, momentum=0.9, affine=True),
-            nn.ReLU(inplace=True),
-            # state size. (ngf*2) x 16 x 16
-            nn.ConvTranspose3d( ngf * 2, ngf, kernel_size, stride, g_padding, 1, bias=False),
-            nn.BatchNorm3d(ngf,eps=1e-05, momentum=0.9, affine=True),
-            nn.ReLU(inplace=True),
-            # state size. (ngf) x 32 x 32
-            nn.ConvTranspose3d( ngf, nc, kernel_size, stride,g_padding, 1, bias=False),
-            nn.Tanh()
-        )
+                ## Define new variables from dict
+                keys=['ngpu','nz','nc','ngf','kernel_size','stride','g_padding']
+                ngpu, nz,nc,ngf,kernel_size,stride,g_padding=list(collections.OrderedDict({key:gdict[key] for key in keys}).values())
+
+                self.main = nn.Sequential(
+                    # nn.ConvTranspose3d(in_channels, out_channels, kernel_size,stride,padding,output_padding,groups,bias, Dilation,padding_mode)
+                    nn.Linear(nz,nc*ngf*8**3),# 262144
+                    nn.BatchNorm3d(nc,eps=1e-05, momentum=0.9, affine=True),
+                    nn.ReLU(inplace=True),
+                    View(shape=[-1,ngf*8,4,4,4]),
+                    nn.ConvTranspose3d(ngf * 8, ngf * 4, kernel_size, stride, g_padding, output_padding=1, bias=False),
+                    nn.BatchNorm3d(ngf*4,eps=1e-05, momentum=0.9, affine=True),
+                    nn.ReLU(inplace=True),
+                    # state size. (ngf*4) x 8 x 8
+                    nn.ConvTranspose3d( ngf * 4, ngf * 2, kernel_size, stride, g_padding, 1, bias=False),
+                    nn.BatchNorm3d(ngf*2,eps=1e-05, momentum=0.9, affine=True),
+                    nn.ReLU(inplace=True),
+                    # state size. (ngf*2) x 16 x 16
+                    nn.ConvTranspose3d( ngf * 2, ngf, kernel_size, stride, g_padding, 1, bias=False),
+                    nn.BatchNorm3d(ngf,eps=1e-05, momentum=0.9, affine=True),
+                    nn.ReLU(inplace=True),
+                    # state size. (ngf) x 32 x 32
+                    nn.ConvTranspose3d( ngf, nc, kernel_size, stride,g_padding, 1, bias=False),
+                    nn.Tanh()
+                )
+
+            def forward(self, ip):
+                return self.main(ip)
+
+        class Discriminator(nn.Module):
+            def __init__(self, gdict):
+                super(Discriminator, self).__init__()
+
+                ## Define new variables from dict
+                keys=['ngpu','nz','nc','ndf','kernel_size','stride','d_padding']
+                ngpu, nz,nc,ndf,kernel_size,stride,d_padding=list(collections.OrderedDict({key:gdict[key] for key in keys}).values())        
+
+                self.main = nn.Sequential(
+                    # input is (nc) x 64 x 64 x 64
+                    # nn.Conv3d(in_channels, out_channels, kernel_size,stride,padding,output_padding,groups,bias, Dilation,padding_mode)
+                    nn.Conv3d(nc, ndf,kernel_size, stride, d_padding,  bias=True),
+                    nn.BatchNorm3d(ndf,eps=1e-05, momentum=0.9, affine=True),
+                    nn.LeakyReLU(0.2, inplace=True),
+                    # state size. (ndf) x 32 x 32
+                    nn.Conv3d(ndf, ndf * 2, kernel_size, stride, d_padding, bias=True),
+                    nn.BatchNorm3d(ndf * 2,eps=1e-05, momentum=0.9, affine=True),
+                    nn.LeakyReLU(0.2, inplace=True),
+                    # state size. (ndf*2) x 16 x 16
+                    nn.Conv3d(ndf * 2, ndf * 4, kernel_size, stride, d_padding, bias=True),
+                    nn.BatchNorm3d(ndf * 4,eps=1e-05, momentum=0.9, affine=True),
+                    nn.LeakyReLU(0.2, inplace=True),
+                    # state size. (ndf*4) x 8 x 8
+                    nn.Conv3d(ndf * 4, ndf * 8, kernel_size, stride, d_padding, bias=True),
+                    nn.BatchNorm3d(ndf * 8,eps=1e-05, momentum=0.9, affine=True),
+                    nn.LeakyReLU(0.2, inplace=True),
+                    # state size. (ndf*8) x 4 x 4
+                    nn.Flatten(),
+                    nn.Linear(nc*ndf*8*8*8, 1)
+        #             nn.Sigmoid()
+                )
+
+            def forward(self, ip):
+        #         print(ip.shape)
+                results=[ip]
+                lst_idx=[]
+                for i,submodel in enumerate(self.main.children()):
+                    mid_output=submodel(results[-1])
+                    results.append(mid_output)
+                    ## Select indices in list corresponding to output of Conv layers
+                    if submodel.__class__.__name__.startswith('Conv'):
+        #                 print(submodel.__class__.__name__)
+        #                 print(mid_output.shape)
+                        lst_idx.append(i)
+
+                FMloss=True
+                if FMloss:
+                    ans=[results[1:][i] for i in lst_idx + [-1]]
+                else :
+                    ans=results[-1]
+                return ans
+
+    elif gdict['image_size']==128:
+
+        class Generator(nn.Module):
+            def __init__(self, gdict):
+                super(Generator, self).__init__()
+
+                ## Define new variables from dict
+                keys=['ngpu','nz','nc','ngf','kernel_size','stride','g_padding']
+                ngpu, nz,nc,ngf,kernel_size,stride,g_padding=list(collections.OrderedDict({key:gdict[key] for key in keys}).values())
+
+                self.main = nn.Sequential(
+                    # nn.ConvTranspose3d(in_channels, out_channels, kernel_size,stride,padding,output_padding,groups,bias, Dilation,padding_mode)
+                    nn.Linear(nz,nc*ngf*8**3*8),# 262144
+                    nn.BatchNorm3d(nc,eps=1e-05, momentum=0.9, affine=True),
+                    nn.ReLU(inplace=True),
+                    View(shape=[-1,ngf*8,8,8,8]),
+                    nn.ConvTranspose3d(ngf * 8, ngf * 4, kernel_size, stride, g_padding, output_padding=1, bias=False),
+                    nn.BatchNorm3d(ngf*4,eps=1e-05, momentum=0.9, affine=True),
+                    nn.ReLU(inplace=True),
+                    # state size. (ngf*4) x 8 x 8
+                    nn.ConvTranspose3d( ngf * 4, ngf * 2, kernel_size, stride, g_padding, 1, bias=False),
+                    nn.BatchNorm3d(ngf*2,eps=1e-05, momentum=0.9, affine=True),
+                    nn.ReLU(inplace=True),
+                    # state size. (ngf*2) x 16 x 16
+                    nn.ConvTranspose3d( ngf * 2, ngf, kernel_size, stride, g_padding, 1, bias=False),
+                    nn.BatchNorm3d(ngf,eps=1e-05, momentum=0.9, affine=True),
+                    nn.ReLU(inplace=True),
+                    # state size. (ngf) x 32 x 32
+                    nn.ConvTranspose3d( ngf, nc, kernel_size, stride,g_padding, 1, bias=False),
+                    nn.Tanh()
+                )
+
+            def forward(self, ip):
+                return self.main(ip)
+
+        class Discriminator(nn.Module):
+            def __init__(self, gdict):
+                super(Discriminator, self).__init__()
+
+                ## Define new variables from dict
+                keys=['ngpu','nz','nc','ndf','kernel_size','stride','d_padding']
+                ngpu, nz,nc,ndf,kernel_size,stride,d_padding=list(collections.OrderedDict({key:gdict[key] for key in keys}).values())        
+
+                self.main = nn.Sequential(
+                    # input is (nc) x 64 x 64 x 64
+                    # nn.Conv3d(in_channels, out_channels, kernel_size,stride,padding,output_padding,groups,bias, Dilation,padding_mode)
+                    nn.Conv3d(nc, ndf,kernel_size, stride, d_padding,  bias=True),
+                    nn.BatchNorm3d(ndf,eps=1e-05, momentum=0.9, affine=True),
+                    nn.LeakyReLU(0.2, inplace=True),
+                    # state size. (ndf) x 32 x 32
+                    nn.Conv3d(ndf, ndf * 2, kernel_size, stride, d_padding, bias=True),
+                    nn.BatchNorm3d(ndf * 2,eps=1e-05, momentum=0.9, affine=True),
+                    nn.LeakyReLU(0.2, inplace=True),
+                    # state size. (ndf*2) x 16 x 16
+                    nn.Conv3d(ndf * 2, ndf * 4, kernel_size, stride, d_padding, bias=True),
+                    nn.BatchNorm3d(ndf * 4,eps=1e-05, momentum=0.9, affine=True),
+                    nn.LeakyReLU(0.2, inplace=True),
+                    # state size. (ndf*4) x 8 x 8
+                    nn.Conv3d(ndf * 4, ndf * 8, kernel_size, stride, d_padding, bias=True),
+                    nn.BatchNorm3d(ndf * 8,eps=1e-05, momentum=0.9, affine=True),
+                    nn.LeakyReLU(0.2, inplace=True),
+                    # state size. (ndf*8) x 4 x 4
+                    nn.Flatten(),
+                    nn.Linear(nc*ndf*8*8*8*8, 1)
+        #             nn.Sigmoid()
+                )
+
+            def forward(self, ip):
+                results=[ip]
+                lst_idx=[]
+                for i,submodel in enumerate(self.main.children()):
+                    mid_output=submodel(results[-1])
+                    results.append(mid_output)
+                    ## Select indices in list corresponding to output of Conv layers
+                    if submodel.__class__.__name__.startswith('Conv'):
+        #                 print(submodel.__class__.__name__)
+        #                 print(mid_output.shape)
+                        lst_idx.append(i)
+
+                FMloss=True
+                if FMloss:
+                    ans=[results[1:][i] for i in lst_idx + [-1]]
+                else :
+                    ans=results[-1]
+                return ans
     
-    def forward(self, ip):
-        return self.main(ip)
-
-class Discriminator(nn.Module):
-    def __init__(self, gdict):
-        super(Discriminator, self).__init__()
-        
-        ## Define new variables from dict
-        keys=['ngpu','nz','nc','ndf','kernel_size','stride','d_padding']
-        ngpu, nz,nc,ndf,kernel_size,stride,d_padding=list(collections.OrderedDict({key:gdict[key] for key in keys}).values())        
-
-        self.main = nn.Sequential(
-            # input is (nc) x 64 x 64 x 64
-            # nn.Conv3d(in_channels, out_channels, kernel_size,stride,padding,output_padding,groups,bias, Dilation,padding_mode)
-            nn.Conv3d(nc, ndf,kernel_size, stride, d_padding,  bias=True),
-            nn.BatchNorm3d(ndf,eps=1e-05, momentum=0.9, affine=True),
-            nn.LeakyReLU(0.2, inplace=True),
-            # state size. (ndf) x 32 x 32
-            nn.Conv3d(ndf, ndf * 2, kernel_size, stride, d_padding, bias=True),
-            nn.BatchNorm3d(ndf * 2,eps=1e-05, momentum=0.9, affine=True),
-            nn.LeakyReLU(0.2, inplace=True),
-            # state size. (ndf*2) x 16 x 16
-            nn.Conv3d(ndf * 2, ndf * 4, kernel_size, stride, d_padding, bias=True),
-            nn.BatchNorm3d(ndf * 4,eps=1e-05, momentum=0.9, affine=True),
-            nn.LeakyReLU(0.2, inplace=True),
-            # state size. (ndf*4) x 8 x 8
-            nn.Conv3d(ndf * 4, ndf * 8, kernel_size, stride, d_padding, bias=True),
-            nn.BatchNorm3d(ndf * 8,eps=1e-05, momentum=0.9, affine=True),
-            nn.LeakyReLU(0.2, inplace=True),
-            # state size. (ndf*8) x 4 x 4
-            nn.Flatten(),
-            nn.Linear(nc*ndf*8*8*8, 1)
-#             nn.Sigmoid()
-        )
-
-    def forward(self, ip):
-#         print(ip.shape)
-        results=[ip]
-        lst_idx=[]
-        for i,submodel in enumerate(self.main.children()):
-            mid_output=submodel(results[-1])
-            results.append(mid_output)
-            ## Select indices in list corresponding to output of Conv layers
-            if submodel.__class__.__name__.startswith('Conv'):
-#                 print(submodel.__class__.__name__)
-#                 print(mid_output.shape)
-                lst_idx.append(i)
-
-        FMloss=True
-        if FMloss:
-            ans=[results[1:][i] for i in lst_idx + [-1]]
-        else :
-            ans=results[-1]
-        return ans
+    return Generator, Discriminator
 
 def f_gen_images(gdict,netG,optimizerG,ip_fname,op_loc,op_strg='inf_img_',op_size=500):
     '''Generate images for best saved models
@@ -166,11 +258,13 @@ def f_load_checkpoint(ip_fname,netG,netD,optimizerG,optimizerD,gdict):
     ''' Load saved checkpoint
     Also loads step, epoch, best_chi1, best_chi2'''
     
+    print("torch device",torch.device('cuda',torch.cuda.current_device()))
+            
     try:
-        checkpoint=torch.load(ip_fname)
+        checkpoint=torch.load(ip_fname,map_location=torch.device('cuda',torch.cuda.current_device()))
     except Exception as e:
+        print("Error loading saved checkpoint",ip_fname)
         print(e)
-        print("skipping generation of images for ",ip_fname)
         raise SystemError
     
     ## Load checkpoint
@@ -192,6 +286,7 @@ def f_load_checkpoint(ip_fname,netG,netD,optimizerG,optimizerD,gdict):
     netG.train()
     netD.train()
     
-    return iters,epoch,best_chi1,best_chi2
+    return iters,epoch,best_chi1,best_chi2,netD,optimizerD,netG,optimizerG
+
 
 
