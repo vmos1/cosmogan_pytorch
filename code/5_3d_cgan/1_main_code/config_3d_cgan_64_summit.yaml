@@ -4,7 +4,7 @@ parameters:
     ip_fname: '/gpfs/alpine/ast153/proj-shared/venkitesh/Cosmogan/data/raw_data/3d_data/64cube/dataset2a_3dcgan_4univs_64cube_simple_splicing'
     op_loc: '/gpfs/alpine/ast153/proj-shared/venkitesh/Cosmogan/data/results_pytorch/3d/'
     image_size: 64
-    num_imgs: 40000
+    num_imgs: 60000
     ip_fldr: '/gpfs/alpine/ast153/proj-shared/venkitesh/Cosmogan/data/results_pytorch/3d/20210524_162001_cgan_bs16_nodes8_lrd-twice-lrg_vary'
     chkpt_file: '/gpfs/alpine/ast153/proj-shared/venkitesh/Cosmogan/data/results_pytorch/3d/20210524_162001_cgan_bs16_nodes8_lrd-twice-lrg_vary/models/checkpoint_last.tar'
 
@@ -26,24 +26,24 @@ parameters:
     sigma_list: [0.5,0.8,1.1]
     model: 2
     batch_size: 16
-    epochs: 50
+    epochs: 300
     op_size: 32
     
-    learn_rate_d: 0.001
-    learn_rate_g: 0.0015
-    lr_d_epochs: [10,40,60,70,100,140,180]
-    lr_d_gamma: 0.5
-    lr_g_epochs: [10,40,60,70,100,140,180]
-    lr_g_gamma: 0.5
+    learn_rate_d: 0.0001
+    learn_rate_g: 0.0001
+    lr_d_epochs: [100]
+    lr_d_gamma: 1.0
+    lr_g_epochs: [100]
+    lr_g_gamma: 1.0
     
     deterministic: False
     seed: 234373
     lambda_spec_mean: 0.1
     lambda_spec_var: 0.1
-    lambda_fm: 0.0 ## Enter False or float
+    lambda_fm: 50.0 ## Enter False or float
     lambda_gp: 0.0 ## Enter False or float
-    grad_clip: 0.5
+    grad_clip: 0.0
     save_steps_list: ' '
-    run_suffix: cgan_bs16_nodes8_lrg-x1.5-lrd_vary
+    run_suffix: cgan_bs16_nodes4_lr0.0001_fm50
 
-    description: '3d conditional GAN: DDP with new loss'
+    description: '3d conditional GAN: 64cube'
