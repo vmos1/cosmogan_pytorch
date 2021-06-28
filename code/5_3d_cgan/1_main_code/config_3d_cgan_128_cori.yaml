@@ -25,16 +25,16 @@ parameters:
 
     sigma_list: [0.5,0.8,1.1]
     model: 2
-    batch_size: 4
+    batch_size: 8
     epochs: 300
-    op_size: 16
+    op_size: 8
     
-    learn_rate_d: 0.00005
-    learn_rate_g: 0.00005
-    lr_d_epochs: [5,10,15,20,50,100]
-    lr_d_gamma: 1.0
-    lr_g_epochs: [5,10,15,20,50,100]
-    lr_g_gamma: 1.0
+    learn_rate_d: 0.00002
+    learn_rate_g: 0.00002
+    lr_d_epochs: [40,60]
+    lr_d_gamma: 0.5
+    lr_g_epochs: [40,60]
+    lr_g_gamma: 0.5
     
     deterministic: False
     seed: 234373
@@ -42,8 +42,8 @@ parameters:
     lambda_spec_var: 0.1
     lambda_fm: 0.0 ## Enter False or float
     lambda_gp: 0.0 ## Enter False or float
-    grad_clip: 0.5
-    save_steps_list: ''
-    run_suffix: cgan_bs32_nodes8_lr0.00005
+    grad_clip: 1.0
+    save_steps_list: 'all'
+    run_suffix: cgan_128_nodes1_lr0.00002_vary
 
     description: '3d conditional GAN: DDP with new loss'

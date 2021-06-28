@@ -212,7 +212,6 @@ if __name__=="__main__":
     print("Analyzing data in",main_dir)
     num_cores=args.cores
     
-    
     ## Define bin-edges for histogram
     if args.bins_type=='uneven':
         bins=np.concatenate([np.array([-0.5]),np.arange(0.5,100.5,5),np.arange(100.5,300.5,20),np.arange(300.5,1000.5,50),np.array([2000])]) #bin edges to use
