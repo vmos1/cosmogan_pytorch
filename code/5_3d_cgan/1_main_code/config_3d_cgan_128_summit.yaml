@@ -4,9 +4,9 @@ parameters:
     ip_fname: '/gpfs/alpine/ast153/proj-shared/venkitesh/Cosmogan/data/raw_data/3d_data/128cube/dataset4_smoothing_4univ_cgan_varying_sigma_128cube'
     op_loc: '/gpfs/alpine/ast153/proj-shared/venkitesh/Cosmogan/data/results_pytorch/3d/'
     image_size: 128
-    num_imgs: 10000
-    ip_fldr: '/gpfs/alpine/ast153/proj-shared/venkitesh/Cosmogan/data/results_pytorch/3d/20210524_162001_cgan_bs16_nodes8_lrd-twice-lrg_vary'
-    chkpt_file: '/gpfs/alpine/ast153/proj-shared/venkitesh/Cosmogan/data/results_pytorch/3d/20210524_162001_cgan_bs16_nodes8_lrd-twice-lrg_vary/models/checkpoint_last.tar'
+    num_imgs: 1000
+    ip_fldr: '/gpfs/alpine/ast153/proj-shared/venkitesh/Cosmogan/data/results_pytorch/3d/20210621_124338_cgan_128_bs16_nodes4_lr0.0002_gclip1.0_fm0'
+    chkpt_file: '/gpfs/alpine/ast153/proj-shared/venkitesh/Cosmogan/data/results_pytorch/3d/20210621_124338_cgan_128_bs16_nodes4_lr0.0002_gclip1.0_fm0/models/checkpoint_last.tar'
 
     workers: 2 #Number of workers for dataloader
     nc: 1 # Number of channels in the training images. For color images this is 3
@@ -25,12 +25,12 @@ parameters:
 
     sigma_list: [0.5,0.8,1.1]
     model: 2
-    batch_size: 4
-    epochs: 200
-    op_size: 16
+    batch_size: 8
+    epochs: 800
+    op_size: 8
     
-    learn_rate_d: 0.0001
-    learn_rate_g: 0.0001
+    learn_rate_d: 0.0002
+    learn_rate_g: 0.0002
     lr_d_epochs: [10,40,60,70,100,140,180]
     lr_d_gamma: 1.0
     lr_g_epochs: [10,40,60,70,100,140,180]
@@ -40,10 +40,10 @@ parameters:
     seed: 234373
     lambda_spec_mean: 0.1
     lambda_spec_var: 0.1
-    lambda_fm: 50.0 ## Enter False or float
+    lambda_fm: 0.0 ## Enter False or float
     lambda_gp: 0.0 ## Enter False or float
-    grad_clip: 0.0
+    grad_clip: 1.0
     save_steps_list: ' '
-    run_suffix: cgan_128_bs16_nodes8_lr0.0001
+    run_suffix: cgan_128_bs16_nodes4_lr0.0002_gclip1.0_fm0
 
     description: '3d conditional GAN : 128cube'
