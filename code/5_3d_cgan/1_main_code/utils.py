@@ -78,6 +78,7 @@ def f_save_checkpoint(gdict,epoch,iters,best_chi1,best_chi2,netG,netD,optimizerG
                 'G_state':netG.state_dict(),'D_state':netD.state_dict(),'optimizerG_state_dict':optimizerG.state_dict(),
                 'optimizerD_state_dict':optimizerD.state_dict()}, save_loc)
     
+
 def f_load_checkpoint(ip_fname,netG,netD,optimizerG,optimizerD,gdict):
     ''' Load saved checkpoint
     Also loads step, epoch, best_chi1, best_chi2'''
