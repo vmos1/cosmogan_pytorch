@@ -145,6 +145,7 @@ def f_compute_chisqr(dict_val,dict_sample,img_size):
 
         size=len(dict_val['hist_val'])
         l1,l2=int(size*0.3),int(size*0.7)
+        l1,l2=24,32
         keys=['chi_1a','chi_1b','chi_1c','chi_1']
         
         for (key,start,end) in zip(keys,[0,l1,l2,0],[l1,l2,None,None]):  # 4 lists : small, medium, large pixel values and full 
@@ -162,7 +163,8 @@ def f_compute_chisqr(dict_val,dict_sample,img_size):
         chisqr_dict.update({'chi_spec1':np.sum(spec_diff[:idx]/dict_sample['spec_val'][:idx]**2)})
 
         ### computing the spectral loss chi-square
-        chisqr_dict.update({'chi_spec2':np.sum(spec_diff[:idx]/dict_sample['spec_sdev'][:idx]**2)})
+        start,end=int(0.75*idx),int(idx)
+        chisqr_dict.update({'chi_spec2':np.sum(spec_diff[start:end]/dict_sample['spec_val'][start:end]**2)}) # large k only
         
         spec_loss=1.0*np.log(np.mean((dict_val['spec_val'][:idx]-dict_sample['spec_val'][:idx])**2))+1.0*np.log(np.mean((dict_val['spec_sdev'][:idx]-dict_sample['spec_sdev'][:idx])**2))
         chisqr_dict.update({'chi_spec3':spec_loss})
