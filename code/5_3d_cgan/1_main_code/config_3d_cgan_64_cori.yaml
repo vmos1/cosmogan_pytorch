@@ -5,6 +5,7 @@ parameters:
     op_loc: '/global/cfs/cdirs/m3363/vayyar/cosmogan_data/results_from_other_code/pytorch/results/3d_cGAN/'
     image_size: 64
     num_imgs: 50000
+    kappa: 50
     ip_fldr: '/global/cfs/cdirs/m3363/vayyar/cosmogan_data/results_from_other_code/pytorch/results/3d_cGAN/20210621_55351_cgan_bs32_nodes8_lr0.0001-vary_fm50_spec1.0/'
     chkpt_file: '/global/cfs/cdirs/m3363/vayyar/cosmogan_data/results_from_other_code/pytorch/results/3d_cGAN/20210621_55351_cgan_bs32_nodes8_lr0.0001-vary_fm50_spec1.0/models/checkpoint_last.tar'
 

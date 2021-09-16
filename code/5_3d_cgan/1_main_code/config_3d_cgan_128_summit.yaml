@@ -5,6 +5,7 @@ parameters:
     op_loc: '/gpfs/alpine/ast153/proj-shared/venkitesh/Cosmogan/data/results_pytorch/3d/'
     image_size: 128
     num_imgs: 5000
+    kappa: 50
     ip_fldr: '/gpfs/alpine/ast153/proj-shared/venkitesh/Cosmogan/data/results_pytorch/3d/20210706_200610_cgan_128_bs8_nodes4_lr0.0002_gclip1.0_fm0'
     chkpt_file: '/gpfs/alpine/ast153/proj-shared/venkitesh/Cosmogan/data/results_pytorch/3d/20210706_200610_cgan_128_bs8_nodes4_lr0.0002_gclip1.0_fm0/models/checkpoint_last.tar'
 

@@ -5,9 +5,10 @@ parameters:
     op_loc: '/global/cfs/cdirs/m3363/vayyar/cosmogan_data/results_from_other_code/pytorch/results/3d_cGAN/'
     image_size: 128
     num_imgs: 5000
-    kappa: 50
-    ip_fldr: '/global/cfs/cdirs/m3363/vayyar/cosmogan_data/results_from_other_code/pytorch/results/3d_cGAN/20210722_200025_cgan_128_nodes1_lr0.00002_finetune/'
-    chkpt_file: '/global/cfs/cdirs/m3363/vayyar/cosmogan_data/results_from_other_code/pytorch/results/3d_cGAN/20210722_200025_cgan_128_nodes1_lr0.00002_finetune/models/checkpoint_last.tar'
+    ip_fldr: '/global/cfs/cdirs/m3363/vayyar/cosmogan_data/results_from_other_code/pytorch/results/3d_cGAN/20210602_112153_cgan_bs32_nodes8_lrd-4x-lrg_cori/'
+#     chkpt_file: '/global/cfs/cdirs/m3363/vayyar/cosmogan_data/results_from_other_code/pytorch/results/3d_cGAN/20210602_112153_cgan_bs32_nodes8_lrd-4x-lrg_cori/models/checkpoint_last.tar'
+    chkpt_file: '/global/cfs/cdirs/m3363/vayyar/cosmogan_data/results_from_other_code/pytorch/results/3d_cGAN/20210628_73858_cgan_128_nodes1_lr0.0002_fm0_goodrun/models/checkpoint_23830.tar'
+
 
     workers: 2 #Number of workers for dataloader
     nc: 1 # Number of channels in the training images. For color images this is 3
@@ -30,8 +31,8 @@ parameters:
     epochs: 300
     op_size: 8
     
-    learn_rate_d: 0.000002
-    learn_rate_g: 0.000002
+    learn_rate_d: 0.00002
+    learn_rate_g: 0.00002
     lr_d_epochs: [40,60]
     lr_d_gamma: 1.0
     lr_g_epochs: [40,60]
@@ -41,10 +42,10 @@ parameters:
     seed: 234373
     lambda_spec_mean: 0.1
     lambda_spec_var: 0.1
-    lambda_fm: 50.0 ## Enter False or float
+    lambda_fm: 0.0 ## Enter False or float
     lambda_gp: 0.0 ## Enter False or float
     grad_clip: 1.0
     save_steps_list: 'all'
-    run_suffix: cgan_128_lr0.000002_vary_fm50
+    run_suffix: cgan_128_nodes1_lr0.000002_finetune
 
-    description: '3d conditional GAN 128cube'
+    description: '3d conditional GAN: 128 fine tune'
