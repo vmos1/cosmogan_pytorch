@@ -256,9 +256,12 @@ class Dataset:
         ## Load training dataset
         t0a=time.time()
         for count,sigma in enumerate(gdict['sigma_list']):
-            fname=gdict['ip_fname']+'/norm_1_sig_%s_train_val.npy'%(sigma)
+#            fname=gdict['ip_fname']+'/norm_1_sig_%s_train_val.npy'%(sigma)
+            fname=gdict['ip_fname']+'/Om0.3_Sg%s_H70.0.npy'%(sigma)
             x=np.load(fname,mmap_mode='r')[:gdict['num_imgs']].transpose(0,1,2,3,4) ## Mod for 3D
             x=f_get_img_samples(x,gdict['world_rank'],gdict['world_size'])
+            x=f_transform(x,gdict['kappa'])
+            print("shape of input file",x.shape)
             size=x.shape[0]
             y=sigma*np.ones(size)
 
@@ -292,8 +295,12 @@ class Dataset:
             with torch.no_grad():
                 spec_mean_list=[];spec_var_list=[];hist_val_list=[]
                 for count,sigma in enumerate(gdict['sigma_list']):
-                    ip_fname=gdict['ip_fname']+'/norm_1_sig_%s_train_val.npy'%(sigma)
+#                     ip_fname=gdict['ip_fname']+'/norm_1_sig_%s_train_val.npy'%(sigma)
+                    ip_fname=gdict['ip_fname']+'/Om0.3_Sg%s_H70.0.npy'%(sigma)
+
                     val_img=np.load(ip_fname,mmap_mode='r')[idx1:idx2].transpose(0,1,2,3,4).copy() ## Mod for 3D
+                    val_img=f_transform(val_img,gdict['kappa'])
+
                     t_val_img=torch.from_numpy(val_img).to(gdict['device'])
 
                     # Precompute radial coordinates
@@ -301,7 +308,7 @@ class Dataset:
                         r,ind=f_get_rad(val_img)
                         r=r.to(gdict['device']); ind=ind.to(gdict['device'])
                     # Stored mean and std of spectrum for full input data once
-                    mean_spec_val,var_spec_val=f_torch_image_spectrum(f_invtransform(t_val_img),1,r,ind)
+                    mean_spec_val,var_spec_val=f_torch_image_spectrum(f_invtransform(t_val_img,gdict['kappa']),1,r,ind)
                     hist_val=f_compute_hist(t_val_img,bins=gdict['bns'])
 
                     spec_mean_list.append(mean_spec_val)
@@ -466,7 +473,7 @@ def f_train_loop(gan_model,Dset,metrics_df,gdict,fixed_noise,fixed_cosm_params):
             hist_loss=f_get_loss_cond('hist',fake,fake_cosm_params,gdict,bins=gdict['bns'],hist_val_tnsr=Dset.train_hist)
 
             # Add spectral loss
-            mean,var=f_torch_image_spectrum(f_invtransform(fake),1,Dset.r.to(device),Dset.ind.to(device))
+            mean,var=f_torch_image_spectrum(f_invtransform(fake,gdict['kappa']),1,Dset.r.to(device),Dset.ind.to(device))
             spec_loss=f_get_loss_cond('spec',fake,fake_cosm_params,gdict,spec_mean_tnsr=Dset.train_spec_mean,spec_var_tnsr=Dset.train_spec_var,r=Dset.r,ind=Dset.ind)
             
             errG=errG_adv

@@ -274,7 +274,7 @@ def f_get_loss_cond(loss_type,img_tensor,cosm_params,gdict,bins=None,hist_val_tn
             if loss_type=='hist':
                 loss_tensor[count]=loss_hist(f_compute_hist(img,bins),hist_val_tnsr[count])*num_frac
             elif loss_type=='spec':
-                mean,var=f_torch_image_spectrum(f_invtransform(img),1,r,ind)
+                mean,var=f_torch_image_spectrum(f_invtransform(img,gdict['kappa']),1,r,ind)
                 loss_tensor[count]=loss_spectrum(mean,spec_mean_tnsr[count],var,spec_var_tnsr[count],gdict['image_size'],gdict['lambda_spec_mean'],gdict['lambda_spec_var'])*num_frac
             elif loss_type=='fm':
                 loss_tensor[count]=f_FM_loss(real_output,fake_output,gdict['lambda_fm'],gdict)

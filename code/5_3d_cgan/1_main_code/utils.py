@@ -6,11 +6,11 @@ import numpy as np
 import collections
 
 ### Transformation functions for image pixel values
-def f_transform(x):
-    return 2.*x/(x + 4.) - 1.
+def f_transform(x,a):
+    return 2.*x/(x + float(a)) - 1.
 
-def f_invtransform(s):
-    return 4.*(1. + s)/(1. - s)
+def f_invtransform(s,a):
+    return float(a)*(1. + s)/(1. - s)
 
 # Generator Code
 class View(nn.Module):

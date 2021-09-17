@@ -35,11 +35,11 @@ def parse_args():
     return parser.parse_args()
 
 ### Transformation functions for image pixel values
-def f_transform(x):
-    return 2.*x/(x + 4. + 1e-8) - 1.
+def f_transform(x,a):
+    return 2.*x/(x + float(a)+1e-8) - 1.
 
-def f_invtransform(s):
-    return 4.*(1. + s)/(1. - s + 1e-8)
+def f_invtransform(s,a):
+    return float(a)*(1. + s)/(1. - s + 1e-8)
 
 # ### Modules for Extraction
 def f_get_sorted_df(main_dir,label):
@@ -222,7 +222,7 @@ if __name__=="__main__":
     print("Bins",bins)
     
     transform=False ## Images are in transformed space (-1,1), convert bins to the same space
-    if not transform: bins=f_transform(bins)   ### scale to (-1,1)     
+    if not transform: bins=f_transform(bins,50)   ### scale to (-1,1)     
     
     ## Get sigma list from saved image files
     flist=glob.glob(fldr_name+'/images/gen_img_*_epoch-0*.npy')
@@ -234,9 +234,12 @@ if __name__=="__main__":
     for count,(sigma,label) in enumerate(zip(sigma_list,label_list)):
         
         ### Extract validation data
-        fname=args.val_data+'norm_1_sig_%s_train_val.npy'%(sigma)
+#         fname=args.val_data+'norm_1_sig_%s_train_val.npy'%(sigma)
+        fname=args.val_data+'Om0.3_Sg%s_H70.0.npy'%(sigma)
+
         print("Using validation data from ",fname)
         s_val=np.load(fname,mmap_mode='r')[:400][:,0,:,:,:]
+        s_val=f_transform(s_val,50)
         print(s_val.shape)
 
         ### Get dataframe with file names, sorted by epoch and step
