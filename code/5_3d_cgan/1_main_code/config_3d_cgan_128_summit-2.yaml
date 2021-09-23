@@ -5,7 +5,7 @@ parameters:
     op_loc: '/gpfs/alpine/ast153/proj-shared/venkitesh/Cosmogan/data/results_pytorch/3d/'
     image_size: 128
     num_imgs: 5000
-    kappa: 50
+    kappa: 4
     ip_fldr: '/gpfs/alpine/ast153/proj-shared/venkitesh/Cosmogan/data/results_pytorch/3d/20210706_200610_cgan_128_bs8_nodes4_lr0.0002_gclip1.0_fm0'
     chkpt_file: '/gpfs/alpine/ast153/proj-shared/venkitesh/Cosmogan/data/results_pytorch/3d/20210706_200610_cgan_128_bs8_nodes4_lr0.0002_gclip1.0_fm0/models/checkpoint_last.tar'
 
@@ -45,6 +45,6 @@ parameters:
     lambda_gp: 0.0 ## Enter False or float
     grad_clip: 1.0
     save_steps_list: ' '
-    run_suffix: cgan_128_bs8_nodes4_lr0.0004_gclip1.0_fm0_kappa50
+    run_suffix: cgan_128_bs8_nodes4_lr0.0004_gclip1.0_fm0_kappa4
 
     description: '3d conditional GAN : 128cube'
