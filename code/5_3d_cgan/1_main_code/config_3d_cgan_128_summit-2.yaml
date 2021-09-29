@@ -5,9 +5,9 @@ parameters:
     op_loc: '/gpfs/alpine/ast153/proj-shared/venkitesh/Cosmogan/data/results_pytorch/3d/'
     image_size: 128
     num_imgs: 5000
-    kappa: 4
-    ip_fldr: '/gpfs/alpine/ast153/proj-shared/venkitesh/Cosmogan/data/results_pytorch/3d/20210706_200610_cgan_128_bs8_nodes4_lr0.0002_gclip1.0_fm0'
-    chkpt_file: '/gpfs/alpine/ast153/proj-shared/venkitesh/Cosmogan/data/results_pytorch/3d/20210706_200610_cgan_128_bs8_nodes4_lr0.0002_gclip1.0_fm0/models/checkpoint_last.tar'
+    kappa: 20
+    ip_fldr: '/gpfs/alpine/ast153/proj-shared/venkitesh/Cosmogan/data/results_pytorch/3d/20210929_93552_cgan_summit_128_bs8_nodes4_lr0.0002_gclip1.0_fm0_spec0.1_kappa20'
+    chkpt_file: '/gpfs/alpine/ast153/proj-shared/venkitesh/Cosmogan/data/results_pytorch/3d/20210929_93552_cgan_summit_128_bs8_nodes4_lr0.0002_gclip1.0_fm0_spec0.1_kappa20/models/checkpoint_last.tar'
 
     workers: 2 #Number of workers for dataloader
     nc: 1 # Number of channels in the training images. For color images this is 3
@@ -30,8 +30,8 @@ parameters:
     epochs: 800
     op_size: 8
     
-    learn_rate_d: 0.0004
-    learn_rate_g: 0.0004
+    learn_rate_d: 0.0002
+    learn_rate_g: 0.0002
     lr_d_epochs: [10,40,60,70,100,140,180]
     lr_d_gamma: 1.0
     lr_g_epochs: [10,40,60,70,100,140,180]
@@ -45,6 +45,6 @@ parameters:
     lambda_gp: 0.0 ## Enter False or float
     grad_clip: 1.0
     save_steps_list: ' '
-    run_suffix: cgan_128_bs8_nodes4_lr0.0004_gclip1.0_fm0_kappa4
+    run_suffix: cgan_summit_128_bs8_nodes4_lr0.0002_gclip1.0_fm0_spec0.1_kappa20
 
     description: '3d conditional GAN : 128cube'
