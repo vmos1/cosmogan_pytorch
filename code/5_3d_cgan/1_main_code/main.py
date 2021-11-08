@@ -350,7 +350,7 @@ class GAN_model():
             #     summary(netG,(1,1,64))
                 print(self.netD)
             #     summary(netD,(1,128,128))
-                print("Number of GPUs used %s"%(gdict['ngpu']))
+                print("Number of GPUs used per node %s"%(gdict['ngpu']))
 
         if (gdict['multi-gpu']):
             if not gdict['distributed']:

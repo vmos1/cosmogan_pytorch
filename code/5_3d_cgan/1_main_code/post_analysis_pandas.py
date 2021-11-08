@@ -29,6 +29,7 @@ def parse_args():
     add_arg('--val_data','-v', type=str, default='/global/cfs/cdirs/m3363/vayyar/cosmogan_data/raw_data/3d_data/dataset1_smoothing_const_params_100k/val.npy',help='The .npy file with input data to compare with')
     add_arg('--folder','-f', type=str,help='The full path of the folder containing the data to analyze.')
     add_arg('--cores','-c', type=int, default=64,help='Number of cores to use for parallelization')
+    add_arg('--kappa','-k', type=float, default=20,help='Parameter in normalization')
     add_arg('--img_size','-i', type=int, default=64,help='Dimension of input images. 64 or 128')
     add_arg('--bins_type','-bin', type=str, default='uneven',help='Number of cores to use for parallelization')
 
@@ -208,10 +209,13 @@ if __name__=="__main__":
     fldr_name=args.folder
     main_dir=fldr_name
     img_size=args.img_size
+    kappa=args.kappa
+    
     if main_dir.endswith('/'): main_dir=main_dir[:-1]
     
     assert os.path.exists(main_dir), "Directory doesn't exist"
     print("Analyzing data in",main_dir)
+    print("Kappa value input: ",kappa)
     num_cores=args.cores
     
     ## Define bin-edges for histogram
@@ -222,7 +226,7 @@ if __name__=="__main__":
     print("Bins",bins)
     
     transform=False ## Images are in transformed space (-1,1), convert bins to the same space
-    if not transform: bins=f_transform(bins,50)   ### scale to (-1,1)     
+    if not transform: bins=f_transform(bins,kappa)   ### scale to (-1,1)     
     
     ## Get sigma list from saved image files
     flist=glob.glob(fldr_name+'/images/gen_img_*_epoch-0*.npy')
@@ -239,7 +243,7 @@ if __name__=="__main__":
 
         print("Using validation data from ",fname)
         s_val=np.load(fname,mmap_mode='r')[:400][:,0,:,:,:]
-        s_val=f_transform(s_val,50)
+        s_val=f_transform(s_val,kappa)
         print(s_val.shape)
 
         ### Get dataframe with file names, sorted by epoch and step
