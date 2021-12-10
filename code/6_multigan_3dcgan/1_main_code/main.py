@@ -322,6 +322,7 @@ class Dataset:
             ## Compute for validation data
             self.val_spec_mean,self.val_spec_var,self.val_hist,_,_=f_compute_summary_stats(-100,-50)
 
+
 class GAN_model():
     def __init__(self,gdict,print_model=False):
     
@@ -341,30 +342,30 @@ class GAN_model():
         self.netG = Generator(gdict).to(gdict['device'])
         self.netG.apply(weights_init)
         # Create Discriminator
-        self.netD = Discriminator(gdict).to(gdict['device'])
-        self.netD.apply(weights_init)
+        self.netDlist = [ Discriminator(gdict).to(gdict['device']) for i in range(gdict['num_D'])]
+        for i in range(gdict['num_D']): self.netDlist[i].apply(weights_init)
 
         if print_model:
             if gdict['world_rank']==0:
                 print(self.netG)
             #     summary(netG,(1,1,64))
-                print(self.netD)
-            #     summary(netD,(1,128,128))
-                print("Number of GPUs used per node %s"%(gdict['ngpu']))
+                print(self.netDlist[0])
+            #     summary(netD[0],(1,128,128))
+                print("Number of GPUs used %s"%(gdict['ngpu']))
 
         if (gdict['multi-gpu']):
             if not gdict['distributed']:
                 self.netG = nn.DataParallel(self.netG, list(range(gdict['ngpu'])))
-                self.netD = nn.DataParallel(self.netD, list(range(gdict['ngpu'])))
+                for i in range(gdict['num_D']): self.netDlist[i] = nn.DataParallel(self.netDlist[i], list(range(gdict['ngpu'])))
             else:
                 self.netG=DistributedDataParallel(self.netG,device_ids=[gdict['local_rank']],output_device=[gdict['local_rank']])
-                self.netD=DistributedDataParallel(self.netD,device_ids=[gdict['local_rank']],output_device=[gdict['local_rank']])
+                for i in range(gdict['num_D']): self.netDlist[i]=DistributedDataParallel(self.netDlist[i],device_ids=[gdict['local_rank']],output_device=[gdict['local_rank']])
 
         #### Initialize networks ####
         # self.criterion = nn.BCELoss()
         self.criterion = nn.BCEWithLogitsLoss()
 
-        self.optimizerD = optim.Adam(self.netD.parameters(), lr=gdict['learn_rate_d'], betas=(gdict['beta1'], 0.999),eps=1e-7)
+        self.optimizerDlist=[optim.Adam(self.netDlist[i] .parameters(), lr=gdict['learn_rate_d'], betas=(gdict['beta1'], 0.999),eps=1e-7) for i in range(gdict['num_D'])]
         self.optimizerG = optim.Adam(self.netG.parameters(), lr=gdict['learn_rate_g'], betas=(gdict['beta1'], 0.999),eps=1e-7)
         
         if gdict['distributed']:  try_barrier(gdict['world_rank'])
@@ -373,15 +374,15 @@ class GAN_model():
             iters,start_epoch,best_chi1,best_chi2=0,0,1e10,1e10 
             
         elif gdict['mode']=='continue':
-            iters,start_epoch,best_chi1,best_chi2,self.netD,self.optimizerD,self.netG,self.optimizerG=f_load_checkpoint(gdict['save_dir']+'/models/checkpoint_last.tar',\
-                                                                                                                        self.netG,self.netD,self.optimizerG,self.optimizerD,gdict) 
+            iters,start_epoch,best_chi1,best_chi2,self.netDlist,self.optimizerDlist,self.netG,self.optimizerG=f_load_checkpoint(gdict['save_dir']+'/models/checkpoint_last.tar',\
+                                                                                                                        self.netG,self.netDlist,self.optimizerG,self.optimizerDlist,gdict) 
             if gdict['world_rank']==0: logging.info("\nContinuing existing run. Loading checkpoint with epoch {0} and step {1}\n".format(start_epoch,iters))
             if gdict['distributed']:  try_barrier(gdict['world_rank'])
             start_epoch+=1  ## Start with the next epoch 
         
         elif gdict['mode']=='fresh_load':
-            iters,start_epoch,best_chi1,best_chi2,self.netD,self.optimizerD,self.netG,self.optimizerG=f_load_checkpoint(gdict['chkpt_file'],\
-                                                                                                                        self.netG,self.netD,self.optimizerG,self.optimizerD,gdict) 
+            iters,start_epoch,best_chi1,best_chi2,self.netDlist,self.optimizerDlist,self.netG,self.optimizerG=f_load_checkpoint(gdict['chkpt_file'],\
+                                                                                                                        self.netG,self.netDlist,self.optimizerG,self.optimizerDlist,gdict) 
             if gdict['world_rank']==0: logging.info("Fresh run loading checkpoint file {0}".format(gdict['chkpt_file']))
 #             if gdict['distributed']:  try_barrier(gdict['world_rank'])
             iters,start_epoch,best_chi1,best_chi2=0,0,1e10,1e10 
@@ -393,11 +394,10 @@ class GAN_model():
         lr_stepsize=int((gdict['num_imgs']*len(gdict['sigma_list']))/(gdict['batch_size']*gdict['world_size'])) # convert epoch number to step 
         lr_d_epochs=[i*lr_stepsize for i in gdict['lr_d_epochs']] 
         lr_g_epochs=[i*lr_stepsize for i in gdict['lr_g_epochs']]
-        self.schedulerD = optim.lr_scheduler.MultiStepLR(self.optimizerD, milestones=lr_d_epochs,gamma=gdict['lr_d_gamma'])
+        self.schedulerD = optim.lr_scheduler.MultiStepLR(self.optimizerDlist[0], milestones=lr_d_epochs,gamma=gdict['lr_d_gamma'])
         self.schedulerG = optim.lr_scheduler.MultiStepLR(self.optimizerG, milestones=lr_g_epochs,gamma=gdict['lr_g_gamma'])
 
 ### Train code ###
-
 def f_train_loop(gan_model,Dset,metrics_df,gdict,fixed_noise,fixed_cosm_params):
     ''' Train single epoch '''
 
@@ -409,66 +409,73 @@ def f_train_loop(gan_model,Dset,metrics_df,gdict,fixed_noise,fixed_cosm_params):
         t_epoch_start=time.time()
         for count, data in enumerate(Dset.train_dataloader):
 
-            ####### Train GAN ########
-            gan_model.netG.train(); gan_model.netD.train();  ### Need to add these after inference and before training
-
             tme1=time.time()
-            ### Update D network: maximize log(D(x)) + log(1 - D(G(z)))
-            gan_model.netD.zero_grad()
-
-            real_cpu = data[0].to(device)
-            real_cosm_params=data[1].to(device)
-            real_cpu.requires_grad=True
+            ####### Train GAN ########
+            gan_model.netG.train(); 
+            for netD,optimizerD in zip(gan_model.netDlist,gan_model.optimizerDlist): 
+                netD.train();  ### Need to add these after inference and before training
             
-            b_size = real_cpu.size(0)
-            real_label = torch.full((b_size,), 1, device=device,dtype=float)
-            fake_label = torch.full((b_size,), 0, device=device,dtype=float)
-            g_label = torch.full((b_size,), 1, device=device,dtype=float) ## No flipping for Generator labels
-            # Flip labels with probability flip_prob
-            for idx in np.random.choice(np.arange(b_size),size=int(np.ceil(b_size*flip_prob))):
-                real_label[idx]=0; fake_label[idx]=1
+                ### Update D network: maximize log(D(x)) + log(1 - D(G(z)))
+                netD.zero_grad()
 
-            # Generate fake image batch with G
-            noise = torch.randn(b_size, 1, 1, 1, nz, device=device) ### Mod for 3D
-            rnd_idx=torch.randint(len(gdict['sigma_list']),(gdict['batch_size'],1),device=gdict['device'])
-            fake_cosm_params=torch.tensor([gdict['sigma_list'][i] for i in rnd_idx.long()],device=gdict['device']).unsqueeze(-1)
+                real_cpu = data[0].to(device)
+                real_cosm_params=data[1].to(device)
+                real_cpu.requires_grad=True
+
+                b_size = real_cpu.size(0)
+                real_label = torch.full((b_size,), 1, device=device,dtype=float)
+                fake_label = torch.full((b_size,), 0, device=device,dtype=float)
+                g_label = torch.full((b_size,), 1, device=device,dtype=float) ## No flipping for Generator labels
+                # Flip labels with probability flip_prob
+                for idx in np.random.choice(np.arange(b_size),size=int(np.ceil(b_size*flip_prob))):
+                    real_label[idx]=0; fake_label[idx]=1
+
+                # Generate fake image batch with G
+                noise = torch.randn(b_size, 1, 1, 1, nz, device=device) ### Mod for 3D
+                rnd_idx=torch.randint(len(gdict['sigma_list']),(gdict['batch_size'],1),device=gdict['device'])
+                fake_cosm_params=torch.tensor([gdict['sigma_list'][i] for i in rnd_idx.long()],device=gdict['device']).unsqueeze(-1)
+
+                fake = gan_model.netG(noise,fake_cosm_params)         
+
+                # Forward pass real batch through D
+                real_output = netD(real_cpu,real_cosm_params)
+                errD_real = gan_model.criterion(real_output[-1].view(-1), real_label.float())
+                errD_real.backward(retain_graph=True)
+                D_x = real_output[-1].mean().item()
+
+                # Forward pass fake batch through D
+                fake_output = netD(fake.detach(),fake_cosm_params)  # The detach is important
+                errD_fake = gan_model.criterion(fake_output[-1].view(-1), fake_label.float())
+                errD_fake.backward(retain_graph=True)
+                D_G_z1 = fake_output[-1].mean().item()
+
+                errD = errD_real + errD_fake 
+
+                if gdict['lambda_gp']: ## Add gradient - penalty loss                
+                    grads=torch.autograd.grad(outputs=real_output[-1],inputs=real_cpu,grad_outputs=torch.ones_like(real_output[-1]),allow_unused=False,create_graph=True)[0]
+                    gp_loss=f_get_loss_cond('gp',fake,fake_cosm_params,gdict,grads=grads)
+                    gp_loss.backward(retain_graph=True)
+                    errD = errD + gp_loss
+                else:
+                    gp_loss=torch.Tensor([np.nan])
+
+                ### Implement Gradient clipping
+                if gdict['grad_clip']:
+                    nn.utils.clip_grad_norm_(netD.parameters(),gdict['grad_clip'])
+
+                optimizerD.step()
+                lr_d=optimizerD.param_groups[0]['lr']
+                gan_model.schedulerD.step()
             
-            # print("Test",noise.shape,fake_cosm_params.shape)
-            fake = gan_model.netG(noise,fake_cosm_params)         
-
-            # Forward pass real batch through D
-            real_output = gan_model.netD(real_cpu,real_cosm_params)
-            errD_real = gan_model.criterion(real_output[-1].view(-1), real_label.float())
-            errD_real.backward(retain_graph=True)
-            D_x = real_output[-1].mean().item()
-
-            # Forward pass fake batch through D
-            fake_output = gan_model.netD(fake.detach(),fake_cosm_params)  # The detach is important
-            errD_fake = gan_model.criterion(fake_output[-1].view(-1), fake_label.float())
-            errD_fake.backward(retain_graph=True)
-            D_G_z1 = fake_output[-1].mean().item()
+            ## Pick a Discriminator at random
+            pickD=np.random.randint(0,gdict['num_D'])
+            print("Discriminator picked",pickD)
+            netD=gan_model.netDlist[pickD]
             
-            errD = errD_real + errD_fake 
-
-            if gdict['lambda_gp']: ## Add gradient - penalty loss                
-                grads=torch.autograd.grad(outputs=real_output[-1],inputs=real_cpu,grad_outputs=torch.ones_like(real_output[-1]),allow_unused=False,create_graph=True)[0]
-                gp_loss=f_get_loss_cond('gp',fake,fake_cosm_params,gdict,grads=grads)
-                gp_loss.backward(retain_graph=True)
-                errD = errD + gp_loss
-            else:
-                gp_loss=torch.Tensor([np.nan])
-
-            ### Implement Gradient clipping
-            if gdict['grad_clip']:
-                nn.utils.clip_grad_norm_(gan_model.netD.parameters(),gdict['grad_clip'])
-                
-            gan_model.optimizerD.step()
-            lr_d=gan_model.optimizerD.param_groups[0]['lr']
-            gan_model.schedulerD.step()
             
             ###Update G network: maximize log(D(G(z)))
             gan_model.netG.zero_grad()
-            output = gan_model.netD(fake,fake_cosm_params)
+            output = netD(fake,fake_cosm_params)
             errG_adv = gan_model.criterion(output[-1].view(-1), g_label.float())
             # Histogram pixel intensity loss
             hist_loss=f_get_loss_cond('hist',fake,fake_cosm_params,gdict,bins=gdict['bns'],hist_val_tnsr=Dset.train_hist)
@@ -532,23 +539,23 @@ def f_train_loop(gan_model,Dset,metrics_df,gdict,fixed_noise,fixed_cosm_params):
 
                 # Checkpoint model for continuing run
                 if count == len(Dset.train_dataloader)-1: ## Checkpoint at last step of epoch
-                    f_save_checkpoint(gdict,epoch,iters,best_chi1,best_chi2,gan_model.netG,gan_model.netD,gan_model.optimizerG,gan_model.optimizerD,save_loc=save_dir+'/models/checkpoint_last.tar')  
+                    f_save_checkpoint(gdict,epoch,iters,best_chi1,best_chi2,gan_model.netG,gan_model.netDlist,gan_model.optimizerG,gan_model.optimizerDlist,save_loc=save_dir+'/models/checkpoint_last.tar')  
                     shutil.copy(save_dir+'/models/checkpoint_last.tar',save_dir+'/models/checkpoint_%s_%s.tar'%(epoch,iters)) # Store last step for each epoch
                     
                 if (checkpoint and (epoch > 1)): # Choose best models by metric
                     if hist_chi< best_chi1:
-                        f_save_checkpoint(gdict,epoch,iters,best_chi1,best_chi2,gan_model.netG,gan_model.netD,gan_model.optimizerG,gan_model.optimizerD,save_loc=save_dir+'/models/checkpoint_best_hist.tar')
+                        f_save_checkpoint(gdict,epoch,iters,best_chi1,best_chi2,gan_model.netG,gan_model.netDlist,gan_model.optimizerG,gan_model.optimizerDlist,save_loc=save_dir+'/models/checkpoint_best_hist.tar')
                         best_chi1=hist_chi.item()
                         logging.info("Saving best hist model at epoch %s, step %s."%(epoch,iters))
 
                     if  spec_chi< best_chi2:
-                        f_save_checkpoint(gdict,epoch,iters,best_chi1,best_chi2,gan_model.netG,gan_model.netD,gan_model.optimizerG,gan_model.optimizerD,save_loc=save_dir+'/models/checkpoint_best_spec.tar')
+                        f_save_checkpoint(gdict,epoch,iters,best_chi1,best_chi2,gan_model.netG,gan_model.netDlist,gan_model.optimizerG,gan_model.optimizerDlist,save_loc=save_dir+'/models/checkpoint_best_spec.tar')
                         best_chi2=spec_chi.item()
                         logging.info("Saving best spec model at epoch %s, step %s"%(epoch,iters))
 
 #                    if (iters in gdict['save_steps_list']) :
                     if ((gdict['save_steps_list']=='all') and (iters % gdict['checkpoint_size'] == 0)):                        
-                        f_save_checkpoint(gdict,epoch,iters,best_chi1,best_chi2,gan_model.netG,gan_model.netD,gan_model.optimizerG,gan_model.optimizerD,save_loc=save_dir+'/models/checkpoint_{0}.tar'.format(iters))
+                        f_save_checkpoint(gdict,epoch,iters,best_chi1,best_chi2,gan_model.netG,gan_model.netDlist,gan_model.optimizerG,gan_model.optimizerDlist,save_loc=save_dir+'/models/checkpoint_{0}.tar'.format(iters))
                         logging.info("Saving given-step at epoch %s, step %s."%(epoch,iters))
 
                 # Save G's output on fixed_noise
@@ -568,7 +575,6 @@ def f_train_loop(gan_model,Dset,metrics_df,gdict,fixed_noise,fixed_cosm_params):
             # Save Metrics to file after each epoch
             metrics_df.to_pickle(save_dir+'/df_metrics.pkle')
             logging.info("best chis: {0}, {1}".format(best_chi1,best_chi2))
-
 
 #########################
 ### Main code #######

@@ -1,0 +1,51 @@
+
+
+parameters:
+    ip_fname: '/gpfs/alpine/ast153/proj-shared/venkitesh/Cosmogan/data/raw_data/3d_data/128cube/dataset4_smoothing_4univ_cgan_varying_sigma_128cube'
+    op_loc: '/gpfs/alpine/ast153/proj-shared/venkitesh/Cosmogan/data/results_pytorch/3d/'
+    image_size: 128
+    num_imgs: 5000
+    kappa: 20
+    num_D: 4
+    ip_fldr: '/gpfs/alpine/ast153/proj-shared/venkitesh/Cosmogan/data/results_pytorch/3d/20210929_93811_cgan_summit_128_bs8_nodes4_lr0.0002_gclip1.0_fm0_spec0.01_kappa20'
+    chkpt_file: '/gpfs/alpine/ast153/proj-shared/venkitesh/Cosmogan/data/results_pytorch/3d/20210929_93811_cgan_summit_128_bs8_nodes4_lr0.0002_gclip1.0_fm0_spec0.01_kappa20/models/checkpoint_last.tar'
+
+    workers: 2 #Number of workers for dataloader
+    nc: 1 # Number of channels in the training images. For color images this is 3
+    nz: 64 # Size of z latent vector (i.e. size of generator input)
+    ngf: 64 # Size of feature maps in generator
+    ndf: 64 # Size of feature maps in discriminator
+    beta1: 0.5 # Beta1 hyperparam for Adam optimizers
+    kernel_size: 5
+    stride: 2
+    g_padding: 2
+    d_padding: 2
+    flip_prob: 0.01
+    bns: 50
+    
+    checkpoint_size: 10
+
+    sigma_list: [0.5,0.8,1.1]
+    model: 2
+    batch_size: 8
+    epochs: 800
+    op_size: 8
+    
+    learn_rate_d: 0.0002
+    learn_rate_g: 0.0002
+    lr_d_epochs: [10,40,60,70,100,140,180]
+    lr_d_gamma: 1.0
+    lr_g_epochs: [10,40,60,70,100,140,180]
+    lr_g_gamma: 1.0
+    
+    deterministic: False
+    seed: 234373
+    lambda_spec_mean: 0.01
+    lambda_spec_var: 0.01
+    lambda_fm: 0.0 ## Enter False or float
+    lambda_gp: 0.0 ## Enter False or float
+    grad_clip: 1.0
+    save_steps_list: ' '
+    run_suffix: cgan_summit_128_bs8_nodes4_lr0.0002_gclip1.0_fm0_spec0.01_kappa20
+
+    description: '3d conditional GAN : 128cube'

@@ -6,6 +6,7 @@ parameters:
     image_size: 128
     num_imgs: 8000
     kappa: 10
+    num_D: 4
     ip_fldr: '/global/cfs/cdirs/m3363/vayyar/cosmogan_data/results_from_other_code/pytorch/results/3d_cGAN/20210722_200025_cgan_128_nodes1_lr0.00002_finetune/'
     chkpt_file: '/global/cfs/cdirs/m3363/vayyar/cosmogan_data/results_from_other_code/pytorch/results/3d_cGAN/20210722_200025_cgan_128_nodes1_lr0.00002_finetune/models/checkpoint_last.tar'
 

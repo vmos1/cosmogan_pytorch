@@ -6,8 +6,9 @@ parameters:
     image_size: 64
     num_imgs: 50000
     kappa: 40
-    ip_fldr: '/global/cfs/cdirs/m3363/vayyar/cosmogan_data/results_from_other_code/pytorch/results/3d_cGAN/20211028_113034_cgan_bs32_nodes8_lr0.00001-fixed_fm00_spec0.0_kappa40/'
-    chkpt_file: '/global/cfs/cdirs/m3363/vayyar/cosmogan_data/results_from_other_code/pytorch/results/3d_cGAN/20211028_113034_cgan_bs32_nodes8_lr0.00001-fixed_fm00_spec0.0_kappa40/models/checkpoint_last.tar'
+    num_D: 4
+    ip_fldr: '/global/cfs/cdirs/m3363/vayyar/cosmogan_data/results_from_other_code/pytorch/results/3d_cGAN/20211209_165746_nb_test/'
+    chkpt_file: '/global/cfs/cdirs/m3363/vayyar/cosmogan_data/results_from_other_code/pytorch/results/3d_cGAN/20211209_165746_nb_test/models/checkpoint_last.tar'
 
     workers: 2 #Number of workers for dataloader
     nc: 1 # Number of channels in the training images. For color images this is 3
