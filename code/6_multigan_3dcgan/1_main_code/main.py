@@ -139,7 +139,7 @@ def f_setup(gdict,metrics_df,log):
     '''
     
     torch.backends.cudnn.benchmark=True
-#     torch.autograd.set_detect_anomaly(True)
+    # torch.autograd.set_detect_anomaly(True)
 
     ## New additions. Code taken from Jan B.
     os.environ['MASTER_PORT'] = "8885"
@@ -412,7 +412,9 @@ def f_train_loop(gan_model,Dset,metrics_df,gdict,fixed_noise,fixed_cosm_params):
             tme1=time.time()
             ####### Train GAN ########
             gan_model.netG.train(); 
-            for netD,optimizerD in zip(gan_model.netDlist,gan_model.optimizerDlist): 
+            errG=0.0
+            for Dcount,(netD,optimizerD) in enumerate(zip(gan_model.netDlist,gan_model.optimizerDlist)): 
+
                 netD.train();  ### Need to add these after inference and before training
             
                 ### Update D network: maximize log(D(x)) + log(1 - D(G(z)))
@@ -467,24 +469,28 @@ def f_train_loop(gan_model,Dset,metrics_df,gdict,fixed_noise,fixed_cosm_params):
                 lr_d=optimizerD.param_groups[0]['lr']
                 gan_model.schedulerD.step()
             
-            ## Pick a Discriminator at random
-            pickD=np.random.randint(0,gdict['num_D'])
-            print("Discriminator picked",pickD)
-            netD=gan_model.netDlist[pickD]
+            # ## Pick a Discriminator at random
+            # pickD=np.random.randint(0,gdict['num_D'])
+            # print("Discriminator picked",pickD)
+            # netD=gan_model.netDlist[pickD]
             
-            
-            ###Update G network: maximize log(D(G(z)))
-            gan_model.netG.zero_grad()
-            output = netD(fake,fake_cosm_params)
-            errG_adv = gan_model.criterion(output[-1].view(-1), g_label.float())
-            # Histogram pixel intensity loss
-            hist_loss=f_get_loss_cond('hist',fake,fake_cosm_params,gdict,bins=gdict['bns'],hist_val_tnsr=Dset.train_hist)
+                ###Update G network: maximize log(D(G(z)))
+                if Dcount==gdict['num_D']-1: 
+                    gan_model.netG.zero_grad()
+                    output = netD(fake,fake_cosm_params)
+                else:     
+                    output = netD(fake.detach(),fake_cosm_params)
+                
+                errG_adv = gan_model.criterion(output[-1].view(-1), g_label.float())
+                # Histogram pixel intensity loss
+                hist_loss=f_get_loss_cond('hist',fake,fake_cosm_params,gdict,bins=gdict['bns'],hist_val_tnsr=Dset.train_hist)
 
-            # Add spectral loss
-            mean,var=f_torch_image_spectrum(f_invtransform(fake,gdict['kappa']),1,Dset.r.to(device),Dset.ind.to(device))
-            spec_loss=f_get_loss_cond('spec',fake,fake_cosm_params,gdict,spec_mean_tnsr=Dset.train_spec_mean,spec_var_tnsr=Dset.train_spec_var,r=Dset.r,ind=Dset.ind)
-            
-            errG=errG_adv
+                # Add spectral loss
+                mean,var=f_torch_image_spectrum(f_invtransform(fake,gdict['kappa']),1,Dset.r.to(device),Dset.ind.to(device))
+                spec_loss=f_get_loss_cond('spec',fake,fake_cosm_params,gdict,spec_mean_tnsr=Dset.train_spec_mean,spec_var_tnsr=Dset.train_spec_var,r=Dset.r,ind=Dset.ind)
+
+                errG+=errG_adv # Sum up gradients for all Discriminators
+                
             if gdict['lambda_spec_mean']: errG = errG+ spec_loss 
             if gdict['lambda_fm']:## Add feature matching loss
                 fm_loss=f_get_loss_cond('fm',fake,fake_cosm_params,gdict,real_output=[i.detach() for i in real_output],fake_output=output)
@@ -495,7 +501,7 @@ def f_train_loop(gan_model,Dset,metrics_df,gdict,fixed_noise,fixed_cosm_params):
             if torch.isnan(errG).any():
                 logging.info(errG)
                 raise SystemError
-            
+
             # Calculate gradients for G
             errG.backward()
             D_G_z2 = output[-1].mean().item()

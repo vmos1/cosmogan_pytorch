@@ -4,11 +4,12 @@ parameters:
     ip_fname: '/global/cfs/cdirs/m3363/vayyar/cosmogan_data/raw_data/3d_data/dataset2a_3dcgan_4univs_64cube_simple_splicing'
     op_loc: '/global/cfs/cdirs/m3363/vayyar/cosmogan_data/results_from_other_code/pytorch/results/3d_cGAN/'
     image_size: 64
-    num_imgs: 50000
+    # num_imgs: 50000
+    num_imgs: 10000
     kappa: 40
     num_D: 4
-    ip_fldr: '/global/cfs/cdirs/m3363/vayyar/cosmogan_data/results_from_other_code/pytorch/results/3d_cGAN/20211209_165746_nb_test/'
-    chkpt_file: '/global/cfs/cdirs/m3363/vayyar/cosmogan_data/results_from_other_code/pytorch/results/3d_cGAN/20211209_165746_nb_test/models/checkpoint_last.tar'
+    ip_fldr: '/global/cfs/cdirs/m3363/vayyar/cosmogan_data/results_from_other_code/pytorch/results/3d_cGAN/20211212_100535_cgan_bs32_nodes8_lr0.0001-fixed_fm10_spec0.1_kappa40'
+    chkpt_file: '/global/cfs/cdirs/m3363/vayyar/cosmogan_data/results_from_other_code/pytorch/results/3d_cGAN/20211212_100535_cgan_bs32_nodes8_lr0.0001-fixed_fm10_spec0.1_kappa40/models/checkpoint_last.tar'
 
     workers: 2 #Number of workers for dataloader
     nc: 1 # Number of channels in the training images. For color images this is 3
@@ -24,7 +25,7 @@ parameters:
     bns: 50
     
     checkpoint_size: 10
-
+    
     sigma_list: [0.5,0.8,1.1]
     model: 2
     batch_size: 32
@@ -32,8 +33,8 @@ parameters:
     epochs: 300
     op_size: 16
     
-    learn_rate_d: 0.00001
-    learn_rate_g: 0.00001
+    learn_rate_d: 0.00002
+    learn_rate_g: 0.00002
     lr_d_epochs: [15,30,45,60,75,90]
     lr_d_gamma: 1.0
     lr_g_epochs: [15,30,45,60,75,90]
@@ -41,12 +42,12 @@ parameters:
     
     deterministic: False
     seed: 234373
-    lambda_spec_mean: 0.00
-    lambda_spec_var: 0.00
-    lambda_fm: 00.0 ## Enter False or float
+    lambda_spec_mean: 0.10
+    lambda_spec_var: 0.10
+    lambda_fm: 0.0 ## Enter False or float
     lambda_gp: 0.0 ## Enter False or float
-    grad_clip: 0.0
+    grad_clip: 1.0
     save_steps_list: 'all'
-    run_suffix: cgan_bs32_nodes8_lr0.00001-fixed_fm00_spec0.0_kappa40
+    run_suffix: cgan_bs32_nodes8_lr0.00002-fixed_fm0_spec0.1_kappa40
     
     description: '3d conditional GAN: DDP with new loss'
