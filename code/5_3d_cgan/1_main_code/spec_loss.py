@@ -231,8 +231,12 @@ def loss_spectrum(spec_mean,spec_mean_ref,spec_var,spec_var_ref,image_size,lambd
     idx=int(image_size/2) ### For the spectrum, use only N/2 indices for loss calc.
     ### Warning: the first index is the channel number.For multiple channels, you are averaging over them, which is fine.
         
-    loss_mean=torch.log(torch.mean(torch.pow(spec_mean[:,:idx]-spec_mean_ref[:,:idx],2)))
-    loss_var=torch.log(torch.mean(torch.pow(spec_var[:,:idx]-spec_var_ref[:,:idx],2)))
+    # loss_mean=torch.log(torch.mean(torch.pow(spec_mean[:,:idx]-spec_mean_ref[:,:idx],2)))
+    # loss_var=torch.log(torch.mean(torch.pow(spec_var[:,:idx]-spec_var_ref[:,:idx],2)))
+    
+    epsilon_spec=1e6 ## correction in case of a 0 inside the log (= min value of spectrum)
+    loss_mean=torch.mean(torch.log(torch.pow(spec_mean[:,:idx]-spec_mean_ref[:,:idx],2)+epsilon_spec))
+    loss_var =torch.mean(torch.log(torch.pow(spec_var[:,:idx]-spec_var_ref[:,:idx],2)+epsilon_spec))    
     
     ans=lambda_spec_mean*loss_mean+lambda_spec_var*loss_var
     

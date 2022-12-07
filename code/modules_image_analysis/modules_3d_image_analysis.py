@@ -169,7 +169,7 @@ def f_radial_profile_3d(data, center=(None,None)):
     z, y, x = np.indices((data.shape)) # Get a grid of x and y values
     
     center=[]
-    if not center:
+    if not centers:
         center = np.array([(x.max()-x.min())/2.0, (y.max()-y.min())/2.0, (z.max()-z.min())/2.0]) # compute centers
         
     # get radial values of every pair of points
@@ -228,8 +228,8 @@ def f_plot_spectrum_3d(img_arr,plot=False,label='input',log_scale=True):
     num = img_arr.shape[0]
     Pk = f_batch_spectrum_3d(img_arr)
 
-    #mean,std = np.mean(Pk, axis=0),np.std(Pk, axis=0)/np.sqrt(Pk.shape[0])
-    mean,std = np.mean(Pk, axis=0),np.std(Pk, axis=0)
+    mean,std = np.mean(Pk, axis=0),np.std(Pk, axis=0)/np.sqrt(Pk.shape[0])
+    # mean,std = np.mean(Pk, axis=0),np.std(Pk, axis=0)
     k=np.arange(len(mean))
     
     if plot: 

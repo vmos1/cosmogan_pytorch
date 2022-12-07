@@ -154,7 +154,8 @@ def f_setup(gdict,metrics_df,log):
         if gdict['distributed']:
             os.environ['WORLD_SIZE'] = os.environ['SLURM_NTASKS']
             os.environ['RANK'] = os.environ['SLURM_PROCID']
-            gdict['local_rank'] = int(os.environ['SLURM_LOCALID'])
+            # gdict['local_rank'] = int(os.environ['SLURM_LOCALID'])
+            gdict['local_rank']=0
 
     ## Special declarations
     gdict['ngpu']=torch.cuda.device_count()
