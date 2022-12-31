@@ -174,6 +174,7 @@ def f_torch_compute_spectrum(arr,r,ind):
     
     y2=real**2+imag**2     ## Absolute value of each complex number
     z1=f_torch_get_azimuthalAverage(y2,r,ind)     ## Compute radial profile
+    
     return z1
 
 def f_torch_compute_batch_spectrum(arr,r,ind):
@@ -200,10 +201,10 @@ def f_torch_image_spectrum(x,num_channels,r,ind):
     mean=torch.stack(mean)
     var=torch.stack(var)
         
-    if (torch.isnan(mean).any() or torch.isnan(var).any()):
-        print("Nans in spectrum",mean,var)
-        if torch.isnan(x).any():
-            print("Nans in Input image")
+    # if (torch.isnan(mean).any() or torch.isnan(var).any()):
+    #     print("Nans in spectrum",mean,var)
+    #     if torch.isnan(x).any():
+    #         print("Nans in Input image")
 
     return mean,var
 
@@ -220,7 +221,7 @@ def f_compute_hist(data,bins):
     return hist_data
 
 ### Losses 
-def loss_spectrum(spec_mean,spec_mean_ref,spec_var,spec_var_ref,image_size,lambda_spec_mean,lambda_spec_var):
+def loss_spectrum(spec_mean,spec_mean_ref,spec_var,spec_var_ref,image_size,lambda_spec_mean,lambda_spec_var,gdict):
     ''' Loss function for the spectrum : mean + variance 
     Log(sum( batch value - expect value) ^ 2 )) '''
     
@@ -236,22 +237,30 @@ def loss_spectrum(spec_mean,spec_mean_ref,spec_var,spec_var_ref,image_size,lambd
     
     epsilon_spec=1e6 ## correction in case of a 0 inside the log (= min value of spectrum)
     loss_mean=torch.mean(torch.log(torch.pow(spec_mean[:,:idx]-spec_mean_ref[:,:idx],2)+epsilon_spec))
-    loss_var =torch.mean(torch.log(torch.pow(spec_var[:,:idx]-spec_var_ref[:,:idx],2)+epsilon_spec))    
     
-    ans=lambda_spec_mean*loss_mean+lambda_spec_var*loss_var
+    # loss_var =torch.mean(torch.log(torch.pow(spec_var[:,:idx]-spec_var_ref[:,:idx],2)+epsilon_spec))    
+    ## For variance, square takes value beyond 1e32, so it fails. value is always positive, so can instead do square of log.
+    # loss_var =torch.mean(torch.pow(torch.log(spec_var[:,:idx])-torch.log(spec_var_ref[:,:idx]),2))
+    
+    loss_var=torch.Tensor([0.0]).to(gdict['device'])
+    
+    # ans=lambda_spec_mean*loss_mean+lambda_spec_var*loss_var
+    ans=lambda_spec_mean*loss_mean
     
     if (torch.isnan(ans).any()) :    
         print("loss spec mean %s, loss spec var %s"%(loss_mean,loss_var))
-        # print("spec mean %s, ref %s"%(spec_mean, spec_mean_ref))
-        # print("spec var %s, ref %s"%(spec_var, spec_var_ref))
-#         raise SystemExit
+        print("spec mean %s, ref %s"%(spec_mean, spec_mean_ref))
+        print("spec var %s, ref %s"%(spec_var, spec_var_ref))
+        raise SystemExit
         
     return ans
     
 def loss_hist(hist_sample,hist_ref):
     
     lambda1=1.0
-    return lambda1*torch.log(torch.mean(torch.pow(hist_sample-hist_ref,2)))
+    #return lambda1*torch.log(torch.mean(torch.pow(hist_sample-hist_ref,2)))
+    epsilon_hist=1e-10
+    return lambda1*torch.mean(torch.log(torch.pow(hist_sample-hist_ref,2)+epsilon_hist))
 
 def f_FM_loss(real_output,fake_output,lambda_fm,gdict):
     '''
@@ -282,10 +291,10 @@ def f_get_loss_cond(loss_type,img_tensor,cosm_params,gdict,bins=None,hist_val_tn
             num_frac=idxs.size(0)/img_tensor.shape[0] ## Fraction of points in the category
             img=img_tensor[idxs]
             if loss_type=='hist':
-                loss_tensor[count]=loss_hist(f_compute_hist(img,bins),hist_val_tnsr[count])*num_frac
+                loss_tensor[count]=loss_hist(f_compute_hist(img,bins).to(gdict['device']),hist_val_tnsr[count].to(gdict['device']))*num_frac
             elif loss_type=='spec':
                 mean,var=f_torch_image_spectrum(f_invtransform(img,gdict['kappa']),1,r,ind)
-                loss_tensor[count]=loss_spectrum(mean,spec_mean_tnsr[count],var,spec_var_tnsr[count],gdict['image_size'],gdict['lambda_spec_mean'],gdict['lambda_spec_var'])*num_frac
+                loss_tensor[count]=loss_spectrum(mean,spec_mean_tnsr[count],var,spec_var_tnsr[count],gdict['image_size'],gdict['lambda_spec_mean'],gdict['lambda_spec_var'],gdict)*num_frac
             elif loss_type=='fm':
                 loss_tensor[count]=f_FM_loss(real_output,fake_output,gdict['lambda_fm'],gdict)
             elif loss_type=='gp':
@@ -293,7 +302,13 @@ def f_get_loss_cond(loss_type,img_tensor,cosm_params,gdict,bins=None,hist_val_tn
 
     loss=loss_tensor.sum()
             
+    if torch.isnan(loss):
+        loss=1e6 # Large loss if any value in loss tensor has a nan
+        print("Nan in %s loss tensor for loss"%(loss_type),loss_tensor)
+        print(loss)
+    
     return loss
+
 
 
 
