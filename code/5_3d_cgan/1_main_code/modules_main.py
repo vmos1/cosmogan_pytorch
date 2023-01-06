@@ -223,7 +223,7 @@ class Dataset:
             x=np.load(fname,mmap_mode='r')[:gdict['num_imgs']].transpose(0,1,2,3,4) ## Mod for 3D
             x=f_get_img_samples(x,gdict,gdict['world_rank'],gdict['world_size'])
             x=f_transform(x,gdict['kappa'])
-            print("shape of input file",x.shape)
+            print("shape of input file for sigma %s : %s"%(sigma,x.shape))
             size=x.shape[0]
             y=sigma*np.ones(size)
 
@@ -245,7 +245,7 @@ class Dataset:
 
         dataset=TensorDataset(t_img,cosm_params)
         self.train_dataloader=DataLoader(dataset,batch_size=gdict['batch_size'],shuffle=True,num_workers=0,drop_last=True)
-        logging.info("Size of dataset for GPU %s : %s"%(gdict['world_rank'],len(self.train_dataloader.dataset)))
+        logging.info("Size of dataset during load for GPU %s : %s"%(gdict['world_rank'],len(self.train_dataloader.dataset)))
 
         t0b=time.time()
         logging.info("Time for creating dataloader %s for rank %s"%(t0b-t0a,gdict['world_rank']))

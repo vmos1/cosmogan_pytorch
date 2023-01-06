@@ -232,20 +232,34 @@ def loss_spectrum(spec_mean,spec_mean_ref,spec_var,spec_var_ref,image_size,lambd
     idx=int(image_size/2) ### For the spectrum, use only N/2 indices for loss calc.
     ### Warning: the first index is the channel number.For multiple channels, you are averaging over them, which is fine.
         
+    #### Old spectral loss: Not a good way. log of mean implies only low k contribute
     # loss_mean=torch.log(torch.mean(torch.pow(spec_mean[:,:idx]-spec_mean_ref[:,:idx],2)))
     # loss_var=torch.log(torch.mean(torch.pow(spec_var[:,:idx]-spec_var_ref[:,:idx],2)))
     
-    epsilon_spec=1e6 ## correction in case of a 0 inside the log (= min value of spectrum)
-    loss_mean=torch.mean(torch.log(torch.pow(spec_mean[:,:idx]-spec_mean_ref[:,:idx],2)+epsilon_spec))
-    
+    #### Method 2: mean of log. Works ok, but square of variance can give very large numbers.
+    # epsilon_spec=1e6 ## correction in case of a 0 inside the log (= min value of spectrum)
+    # epsilon_var=1e12 ## correction in case of a 0 inside the log (= min value of spectrum)
+    # loss_mean=torch.mean(torch.log(torch.pow(spec_mean[:,:idx]-spec_mean_ref[:,:idx],2)+epsilon_spec))
     # loss_var =torch.mean(torch.log(torch.pow(spec_var[:,:idx]-spec_var_ref[:,:idx],2)+epsilon_spec))    
-    ## For variance, square takes value beyond 1e32, so it fails. value is always positive, so can instead do square of log.
-    # loss_var =torch.mean(torch.pow(torch.log(spec_var[:,:idx])-torch.log(spec_var_ref[:,:idx]),2))
+   
+    #### Method 3: scale mean and variance by lowest value
+    epsilon_mean=1e4 ## lowest value of spectrum 
+    epsilon_var=1e12 ## log mean value of variance
     
-    loss_var=torch.Tensor([0.0]).to(gdict['device'])
+    ## Factor of 0.5 to compensate for the square. the sum at the end to compensate for the scaling with epsilon before the log
+    loss_mean = 0.5* torch.mean( torch.log( torch.pow( spec_mean[:,:idx]/epsilon_mean - spec_mean_ref[:,:idx]/epsilon_mean,2)) )
     
-    # ans=lambda_spec_mean*loss_mean+lambda_spec_var*loss_var
-    ans=lambda_spec_mean*loss_mean
+    loss_var  = 0.5* torch.mean( torch.log( torch.pow( spec_var[:,:idx]/epsilon_var   - spec_var_ref[:,:idx]/epsilon_var,2))   )    
+    
+    
+    # loss_var=torch.Tensor([0.0]).to(gdict['device'])
+    if loss_var>1e36: 
+        print("Infinite value")
+        print(torch.max(spec_var),torch.max(spec_var_ref))
+        print(spec_var,spec_var_ref)
+        
+    ans=lambda_spec_mean*loss_mean + lambda_spec_var*loss_var
+    # ans=lambda_spec_mean*loss_mean
     
     if (torch.isnan(ans).any()) :    
         print("loss spec mean %s, loss spec var %s"%(loss_mean,loss_var))
@@ -308,10 +322,3 @@ def f_get_loss_cond(loss_type,img_tensor,cosm_params,gdict,bins=None,hist_val_tn
         print(loss)
     
     return loss
-
-
-
-
-
-
-
